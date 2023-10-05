@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives import hashes
 class Certificate:
     def __init__(self):
         self.__asymmetric_key = self.__generate_key()
-        self.__store__key()
+        self.__store_key()
         self.__certificate = self.__generate_certificate()
         self.__store_certificate()
 
@@ -20,7 +20,7 @@ class Certificate:
             key_size=2048
         )
 
-    def __store__key(self):
+    def __store_key(self):
         #   GUARDA CLAVE PRIVADA EN DISCO
         with open("pemfiles/private_key.pem", "wb") as f:
             f.write(self.__asymmetric_key.private_bytes(
@@ -62,9 +62,11 @@ class Certificate:
         with open("pemfiles/certificate.pem", "wb") as f:
             f.write(self.__certificate.public_bytes(serialization.Encoding.PEM))
 
+
 #ENVÍA SU CLAVE PÚBLICA
 
 #RECIBE CLAVE SIMÉTRICA ENCRIPTADA CON CLAVE PÚBLICA
+
 
 #DESENCRIPTA CLAVE SIMÉTRICA CON CLAVE PRIVADA
 
