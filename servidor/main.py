@@ -4,6 +4,20 @@ from cryptography.hazmat.primitives import serialization
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
+from socket import *
+
+# CREA SERVER SOCKET
+port = 12000
+server_ip = "localhost"
+
+server_socket = socket(AF_INET, SOCK_STREAM)
+server_socket.bind((server_ip, port))
+server_socket.listen(1)
+
+# INICIA COMUNICACIÓN CON EL CLIENTE, CREA CONNECTION SOCKET
+connection_socket, client_ip = server_socket.accept()
+
+# CREA CLAVE PÚBLICA Y CERTIFICADO\
 
 
 class Certificate:
@@ -63,12 +77,23 @@ class Certificate:
             f.write(self.__certificate.public_bytes(serialization.Encoding.PEM))
 
 
-#ENVÍA SU CLAVE PÚBLICA
+#ENVÍA SU CERTIFICADO
+
+with open("pemfiles/certificate.pem", "rb") as f:
+    certificate_pem_data = f.read()
+connection_socket.send(certificate_pem_data)
 
 #RECIBE CLAVE SIMÉTRICA ENCRIPTADA CON CLAVE PÚBLICA
-
+encrypted_symmetric_key = connection_socket.recv(2048)
 
 #DESENCRIPTA CLAVE SIMÉTRICA CON CLAVE PRIVADA
+with open("pemfiles/private_key.pem", "rb") as f:
+    private_key_pem_data = f.read()
+
+private_key = serialization.load_pem_private_key(data=private_key_pem_data, password=None)
+print(private_key)
+
+#
 
 #RECIBE USUARIO ENCRIPTADO CON CLAVE SIMÉTRICA
 
