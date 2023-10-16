@@ -1,10 +1,17 @@
-import datetime
-from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
-from cryptography import x509
-from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 from socket import *
+from Certificate import Certificate
+from cryptography.fernet import Fernet
+from Manage_Userbase import Userbase
+from ServerManager import ServerManager
+PADDING = padding.OAEP(
+    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+    algorithm=hashes.SHA256(),
+    label=None
+)
+userbase = Userbase()
 
 # CREA SERVER SOCKET
 port = 12000
@@ -12,97 +19,81 @@ server_ip = "localhost"
 
 server_socket = socket(AF_INET, SOCK_STREAM)
 server_socket.bind((server_ip, port))
-server_socket.listen(1)
+client_ip = None
 
 # INICIA COMUNICACIÓN CON EL CLIENTE, CREA CONNECTION SOCKET
-connection_socket, client_ip = server_socket.accept()
+while True:
+    print("Esperando conexión\n")
+    server_socket.listen(1)
+    if client_ip is not None:
+        print(f"Conexión finalizada con {client_ip[0]}")
+    connection_socket, client_ip = server_socket.accept()
+    print(f"Conexión iniciada con {client_ip[0]}\n")
+    # CREA CLAVE PÚBLICA Y CERTIFICADO
+    # actualmente crea un certificado en cada instancia, en el futuro comprobará si dispone de uno válido
+    cert = Certificate()
 
-# CREA CLAVE PÚBLICA Y CERTIFICADO\
+    # ENVÍA SU CERTIFICADO
+    with open("database/certificate.pem", "rb") as f:
+        certificate_pem_data = f.read()
 
+    connection_socket.send(certificate_pem_data)
 
-class Certificate:
-    def __init__(self):
-        self.__asymmetric_key = self.__generate_key()
-        self.__store_key()
-        self.__certificate = self.__generate_certificate()
-        self.__store_certificate()
+    # RECIBE CLAVE SIMÉTRICA ENCRIPTADA CON CLAVE PÚBLICA
+    encrypted_symmetric_key = connection_socket.recv(2048)
 
-    @staticmethod
-    def __generate_key():
-        return rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048
-        )
+    # DESENCRIPTA CLAVE SIMÉTRICA CON CLAVE PRIVADA
+    with open("database/private_key.pem", "rb") as f:
+        private_key_pem_data = f.read()
 
-    def __store_key(self):
-        #   GUARDA CLAVE PRIVADA EN DISCO
-        with open("pemfiles/private_key.pem", "wb") as f:
-            f.write(self.__asymmetric_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()       #   HAY QUE ENCRIPTAR LA CLAVE PRIVADA AL ALMACENARLA
-            ))
+    private_key = serialization.load_pem_private_key(data=private_key_pem_data, password=None)
+    symmetric_key = private_key.decrypt(encrypted_symmetric_key, PADDING)
+    fernet = Fernet(symmetric_key)
+    server_manager = ServerManager(tcp_socket=connection_socket, fernet=fernet)
 
-    def __generate_certificate(self):           #   GENERA CERTIFICADO
-        subject = issuer = x509.Name([
-            x509.NameAttribute(NameOID.COUNTRY_NAME, "ES"),
-            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Madrid"),
-            x509.NameAttribute(NameOID.LOCALITY_NAME, "Colmenarejo"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "UC3M"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "uc3m.es")
-        ])
+    # RECIBE ESTADO DE CUENTA DEL CLIENTE
+    new = server_manager.receive()
+    if new == -1:
+        continue
+    new_bool = {'y': False, 'n': True}
+    new = new_bool.get(new)
 
-        certificate = x509.CertificateBuilder().subject_name(
-            subject
-        ).issuer_name(
-            issuer
-        ).public_key(
-            self.__asymmetric_key.public_key()
-        ).serial_number(
-            x509.random_serial_number()
-        ).not_valid_before(
-            datetime.datetime.now(datetime.timezone.utc)
-        ).not_valid_after(
-            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365) #   certificado válido por un año
-        ).add_extension(
-            x509.SubjectAlternativeName([x509.DNSName("localhost")]),
-            critical=False,
-        ).sign(self.__asymmetric_key, hashes.SHA256())
+    # RECIBE USUARIO
+    username = server_manager.receive()
+    if username == -1:
+        continue
 
-        return certificate
+    # COMPRUEBA SU USUARIO ESTÁ EN BASE DE DATOS
+    if new:
+        if userbase.user_with_username(username) is not None:
+            answer = "ERROR"
+            server_manager.send(answer)
+            connection_socket.close()
+            continue
 
-    def __store_certificate(self):
-        #   ALMACENA CERTIFICADO EN DISCO
-        with open("pemfiles/certificate.pem", "wb") as f:
-            f.write(self.__certificate.public_bytes(serialization.Encoding.PEM))
+        answer = "NOERR"
+        new_user = {"username": username, "password": None}
+        server_manager.send(answer)
 
+        # RECIBE CONTRASEÑA
+        password = server_manager.receive()
+        if password == -1:
+            continue
+        new_user["password"] = password
+        userbase.add_user(new_user)
 
-#ENVÍA SU CERTIFICADO
+    else:
+        test = userbase.user_with_username(username)
+        if userbase.user_with_username(username) is None:
+            answer = "ERROR"
+            server_manager.send(answer)
+            connection_socket.close()
+            continue
 
-with open("pemfiles/certificate.pem", "rb") as f:
-    certificate_pem_data = f.read()
-connection_socket.send(certificate_pem_data)
+        # RECIBE CONTRASEÑA
+        password = server_manager.receive()
+        if password == -1:
+            continue
 
-#RECIBE CLAVE SIMÉTRICA ENCRIPTADA CON CLAVE PÚBLICA
-encrypted_symmetric_key = connection_socket.recv(2048)
-
-#DESENCRIPTA CLAVE SIMÉTRICA CON CLAVE PRIVADA
-with open("pemfiles/private_key.pem", "rb") as f:
-    private_key_pem_data = f.read()
-
-private_key = serialization.load_pem_private_key(data=private_key_pem_data, password=None)
-print(private_key)
-
-#
-
-#RECIBE USUARIO ENCRIPTADO CON CLAVE SIMÉTRICA
-
-#DESENCRIPTA USUARIO CON CLAVE SIMÉTRICA
-
-#COMPRUEBA SU USUARIO ESTÁ EN BASE DE DATOS
-
-#RECIBE CONTRASEÑA ENCRIPTADA CON CLAVE SIMÉTRICA
-
-#DESENCRIPTA CONTRASEÑA CON CLAVE SIMÉTRICA
-
-#VALIDA SI LA CONTRASEÑA ESTÁ EN SU SERVIDOR
+        # VALIDA SI LA CONTRASEÑA ES CORRECTA
+        userbase.user_password_match(username, password)
