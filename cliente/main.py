@@ -74,3 +74,11 @@ if error:
         raise ValueError("Cuenta con ese nombre de usuario no existe.")
 
 server_manager.send(user.password)
+error = answer_to_bool.get(server_manager.receive())
+if not error:
+    print(f"Bienvenido, {user.username}")
+else:
+    if new == 'n':
+        print("Contraseña incorrecta.")
+    else:
+        print("Ha habido un error, por favor, vuelva a intentarlo")

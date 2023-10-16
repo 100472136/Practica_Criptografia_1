@@ -23,12 +23,12 @@ client_ip = None
 
 # INICIA COMUNICACIÓN CON EL CLIENTE, CREA CONNECTION SOCKET
 while True:
-    print("Esperando conexión\n")
-    server_socket.listen(1)
     if client_ip is not None:
-        print(f"Conexión finalizada con {client_ip[0]}")
+        print(f"Conexión finalizada con {client_ip[0]}\n\n")
+    print("Esperando conexión")
+    server_socket.listen(1)
     connection_socket, client_ip = server_socket.accept()
-    print(f"Conexión iniciada con {client_ip[0]}\n")
+    print(f"\n\nConexión iniciada con {client_ip[0]}")
     # CREA CLAVE PÚBLICA Y CERTIFICADO
     # actualmente crea un certificado en cada instancia, en el futuro comprobará si dispone de uno válido
     cert = Certificate()
@@ -37,9 +37,11 @@ while True:
     with open("database/certificate.pem", "rb") as f:
         certificate_pem_data = f.read()
 
+    print("Enviando certificado...")
     connection_socket.send(certificate_pem_data)
 
     # RECIBE CLAVE SIMÉTRICA ENCRIPTADA CON CLAVE PÚBLICA
+    print("Recibiendo clave simétrica...")
     encrypted_symmetric_key = connection_socket.recv(2048)
 
     # DESENCRIPTA CLAVE SIMÉTRICA CON CLAVE PRIVADA
@@ -57,6 +59,10 @@ while True:
         continue
     new_bool = {'y': False, 'n': True}
     new = new_bool.get(new)
+    if new:
+        print("Cliente solicita registro de nuevo usuario.")
+    else:
+        print("Cliente solicita iniciar sesión")
 
     # RECIBE USUARIO
     username = server_manager.receive()
@@ -69,11 +75,12 @@ while True:
             answer = "ERROR"
             server_manager.send(answer)
             connection_socket.close()
+            print(f"Error: solicitando crear cuenta con nombre de usuario {username}:ya existente")
             continue
 
-        answer = "NOERR"
+        print(f"Iniciando registro de cuenta con nombre de usuario {username}")
         new_user = {"username": username, "password": None}
-        server_manager.send(answer)
+        server_manager.send("NOERR")
 
         # RECIBE CONTRASEÑA
         password = server_manager.receive()
@@ -81,6 +88,7 @@ while True:
             continue
         new_user["password"] = password
         userbase.add_user(new_user)
+        print(f"Registro de cuenta con nombre de usuario {username} completada satisfactoriamente")
 
     else:
         test = userbase.user_with_username(username)
@@ -88,7 +96,11 @@ while True:
             answer = "ERROR"
             server_manager.send(answer)
             connection_socket.close()
+            print(f"Error: cliente solicitando iniciar sesión con nombre de usuario {username}: no existente")
             continue
+
+        server_manager.send("NOERR")
+        print(f"Iniciando inicio de sesión para usuario {username}")
 
         # RECIBE CONTRASEÑA
         password = server_manager.receive()
@@ -96,4 +108,9 @@ while True:
             continue
 
         # VALIDA SI LA CONTRASEÑA ES CORRECTA
-        userbase.user_password_match(username, password)
+        if userbase.user_password_match(username, password):
+            server_manager.send("NOERR")
+            print(f"Inicio de sesión para usuario {username} completo satisfactoriamente.")
+        else:
+            server_manager.send("ERROR")
+            print(f"Error en el inicio de sesión del usuario {username}: contraseña incorreta.")

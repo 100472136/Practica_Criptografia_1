@@ -1,5 +1,7 @@
 import socket
 from socket import *
+
+import cryptography.fernet
 from cryptography.fernet import Fernet
 
 
@@ -25,5 +27,9 @@ class ServerManager:
             return answer.decode()
         except BrokenPipeError:
             print("Cliente ha finalizado conexión.\n")
+            self.__socket.close()
+            return -1
+        except cryptography.fernet.InvalidToken:
+            print("Error: mensaje corrupto\n")
             self.__socket.close()
             return -1
