@@ -3,13 +3,15 @@ from cryptography.fernet import Fernet
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
+from getpass import getpass as pwd_input
 from socket import *
 from ServerManager import ServerManager
+
 PADDING = padding.OAEP(
-        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-        algorithm=hashes.SHA256(),
-        label=None
-    )
+    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+    algorithm=hashes.SHA256(),
+    label=None
+)
 
 #  INICIAR COMUNICACIÓN
 server_name = "localhost"
@@ -46,13 +48,13 @@ while new != 'y' and new != 'n':
 
 if new == 'n':
     username = input("Introduzca un nombre de usuario:\t")
-    password = input("Cree una contraseña, debe de tener mínimo 7 carácteres:\t")
-    while len(password) < 6:
-        password = input("Error, contraseña debe de tener mínimo 7 carácteres.\nCree una contraseña, debe de tener "
-                         "mínimo 7 carácteres:\t")
+    password = pwd_input("Cree una contraseña, debe de tener mínimo 7 caracteres:\t")
+    while len(password) < 7:
+        password = pwd_input("Error, contraseña debe de tener mínimo 7 caracteres.\nCree una contraseña, debe de tener "
+                             "mínimo 7 caracteres:\t")
 else:
     username = input("Introduzca su nombre de usuario:\t")
-    password = input("Introduzca su contraseña:\t")
+    password = pwd_input("Introduzca su contraseña:\t")
 user = User(new=new, username=username, password=password)
 
 # ENVÍA ESTADO DE CUENTA AL SERVIDOR
@@ -73,12 +75,13 @@ if error:
     else:
         raise ValueError("Cuenta con ese nombre de usuario no existe.")
 
+# ENVÍA CONTRASEÑA AL SERVIDOR
 server_manager.send(user.password)
 error = answer_to_bool.get(server_manager.receive())
 if not error:
     print(f"Bienvenido, {user.username}")
 else:
-    if new == 'n':
+    if new == 'y':
         print("Contraseña incorrecta.")
     else:
         print("Ha habido un error, por favor, vuelva a intentarlo")

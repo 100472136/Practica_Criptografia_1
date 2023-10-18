@@ -88,6 +88,7 @@ while True:
             continue
         new_user["password"] = password
         userbase.add_user(new_user)
+        server_manager.send("NOERR")
         print(f"Registro de cuenta con nombre de usuario {username} completada satisfactoriamente")
 
     else:
