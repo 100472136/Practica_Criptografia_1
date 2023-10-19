@@ -2,11 +2,8 @@
     "users": [
         {
             "username": "Aobies",
-            "password": "1234567"
-        },
-        {
-            "username": "test",
-            "password": "1234567"
+            "password_key": "\u0001\u00ffz\u00e1z0\u00c2k\b\u0087q\r\u00bb\u0003\u0012\u000e\u00f7\u00929\u000b\u00af\u0092\u00f19\u00d2)\u0092kj\u00be\"S",
+            "salt": "\u00f5N\u0002\u00d3\"\u0010\u00e0\u00ec\u00a0\u009c\u0007\u00abk\u00a9\u00e5s"
         }
     ]
 }

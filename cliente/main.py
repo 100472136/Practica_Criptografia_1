@@ -17,7 +17,10 @@ PADDING = padding.OAEP(
 server_name = "localhost"
 port = 12000
 client_socket = socket(AF_INET, SOCK_STREAM)
-client_socket.connect((server_name, port))
+try:
+    client_socket.connect((server_name, port))
+except ConnectionRefusedError:
+    raise ConnectionRefusedError("Error: server not active\n")
 
 # RECIBIR CERTIFICADO DEL SERVIDOR
 t_cert_pem_data = client_socket.recv(2048)

@@ -79,15 +79,13 @@ while True:
             continue
 
         print(f"Iniciando registro de cuenta con nombre de usuario {username}")
-        new_user = {"username": username, "password": None}
         server_manager.send("NOERR")
 
         # RECIBE CONTRASEÑA
         password = server_manager.receive()
         if password == -1:
             continue
-        new_user["password"] = password
-        userbase.add_user(new_user)
+        userbase.add_user(username, password)
         server_manager.send("NOERR")
         print(f"Registro de cuenta con nombre de usuario {username} completada satisfactoriamente")
 
@@ -114,4 +112,4 @@ while True:
             print(f"Inicio de sesión para usuario {username} completo satisfactoriamente.")
         else:
             server_manager.send("ERROR")
-            print(f"Error en el inicio de sesión del usuario {username}: contraseña incorreta.")
+            print(f"Error en el inicio de sesión del usuario {username}: contraseña incorrecta.")

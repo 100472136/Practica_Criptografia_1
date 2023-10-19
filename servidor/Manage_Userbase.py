@@ -1,4 +1,9 @@
 import json
+import os
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from cryptography.exceptions import InvalidKey
+import base64
+from base64 import b64encode
 
 
 class Userbase:
@@ -17,27 +22,47 @@ class Userbase:
 
     def user_with_username(self, username: str):
         with open(self.__path, "r") as file:
-            datalist = json.load(file)
-        for user in datalist["users"]:
+            data_list = json.load(file)
+        for user in data_list["users"]:
             if user.get("username") == username:
                 return user
         return None
 
-    def add_user(self, user: dict):
-        if self.user_with_username(user["username"]) is not None:
+    def add_user(self, username: str, password: str):
+        if self.user_with_username(username) is not None:
             raise ValueError("Intentando añadir usuario ya existente.")
 
         with open(self.__path, "r") as file:
-            datalist = json.load(file)
-        datalist["users"].append(user)
+            data_list = json.load(file)
+        salt = os.urandom(16)
+        kdf = Scrypt(
+            salt=salt,
+            length=32,
+            n=2**14,
+            r=8,
+            p=1
+        )
+        password_key = kdf.derive(password.encode())
+        data_list["users"].append({"username": username, "password_key": password_key.decode('latin-1'), "salt": salt.decode('latin-1')})
         with open(self.__path, "w") as file:
-            json.dump(datalist, file, indent=4)
+            json.dump(data_list, file, indent=4)
 
     def user_password_match(self, username: str, password: str):
         user = self.user_with_username(username)
         if user is None:
             raise ValueError("Intentando comprobar contraseña de usuario no existente.")
-        if user["password"] == password:
-            return True
-        return False
+        salt = user["salt"].encode('latin-1')
+        password_key = user["password_key"].encode('latin-1')
+        kdf = Scrypt(
+            salt=salt,
+            length=32,
+            n=2**14,
+            r=8,
+            p=1
+        )
+        try:
+            kdf.verify(password.encode(), password_key)
+        except InvalidKey:
+            return False
+        return True
 
