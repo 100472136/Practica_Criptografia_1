@@ -1,0 +1,4 @@
+-Primero: Se debe usar python 3.11 o superior.
+-Segundo: Instalar todas las dependencias especificadas en requirements.txt
+-Tercer: Iniciar(Run) el archivo servidor/main.py
+-Cuarto: Iniciar(Run) el archivo cliente/main.py
