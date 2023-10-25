@@ -26,10 +26,8 @@ class ServerManager:
             answer = self.__fernet.decrypt(answer)
             return answer.decode()
         except BrokenPipeError:
-            raise BrokenPipeError("Error: servidor ha finalizado conexión.\n")
             self.__socket.close()
-            return -1
+            print("Error: cliente ha finalizado conexión")
         except cryptography.fernet.InvalidToken:
-            raise BrokenPipeError("Error: Mensaje corrupto.\n")
             self.__socket.close()
-            return -1
+            print("Error: Mensaje corrupto.")
