@@ -7,8 +7,9 @@ from cryptography.hazmat.primitives import hashes
 
 
 class Certificate:
-    def __init__(self):
+    def __init__(self, passphrase: bytes):
         self.__asymmetric_key = self.__generate_key()
+        self.__passphrase = passphrase
         self.__store_key()
         self.__certificate = self.__generate_certificate()
         self.__store_certificate()
@@ -26,10 +27,10 @@ class Certificate:
             f.write(self.__asymmetric_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()       #   HAY QUE ENCRIPTAR LA CLAVE PRIVADA AL ALMACENARLA
+                encryption_algorithm=serialization.BestAvailableEncryption(self.__passphrase)       # HAY QUE ENCRIPTAR LA CLAVE PRIVADA AL ALMACENARLA
             ))
 
-    def __generate_certificate(self):           #   GENERA CERTIFICADO
+    def __generate_certificate(self):           # GENERA CERTIFICADO
         subject = issuer = x509.Name([
             x509.NameAttribute(NameOID.COUNTRY_NAME, "ES"),
             x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Madrid"),

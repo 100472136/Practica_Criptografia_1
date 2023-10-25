@@ -6,6 +6,8 @@ from Certificate import Certificate
 from cryptography.fernet import Fernet
 from Manage_Userbase import Userbase
 from ServerManager import ServerManager
+import os
+PASSPHRASE = os.urandom(16)
 PADDING = padding.OAEP(
     mgf=padding.MGF1(algorithm=hashes.SHA256()),
     algorithm=hashes.SHA256(),
@@ -31,7 +33,7 @@ while True:
     print(f"\n\nConexión iniciada con {client_ip[0]}")
     # CREA CLAVE PÚBLICA Y CERTIFICADO
     # actualmente crea un certificado en cada instancia, en el futuro comprobará si dispone de uno válido
-    cert = Certificate()
+    cert = Certificate(PASSPHRASE)
 
     # ENVÍA SU CERTIFICADO
     with open("database/certificate.pem", "rb") as f:
@@ -48,7 +50,7 @@ while True:
     with open("database/private_key.pem", "rb") as f:
         private_key_pem_data = f.read()
 
-    private_key = serialization.load_pem_private_key(data=private_key_pem_data, password=None)
+    private_key = serialization.load_pem_private_key(data=private_key_pem_data, password=PASSPHRASE)
     symmetric_key = private_key.decrypt(encrypted_symmetric_key, PADDING)
     fernet = Fernet(symmetric_key)
     server_manager = ServerManager(tcp_socket=connection_socket, fernet=fernet)

@@ -2,8 +2,6 @@ import json
 import os
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.exceptions import InvalidKey
-import base64
-from base64 import b64encode
 
 
 class Userbase:

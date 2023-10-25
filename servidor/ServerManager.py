@@ -28,6 +28,6 @@ class ServerManager:
         except BrokenPipeError:
             self.__socket.close()
             print("Error: cliente ha finalizado conexión")
-        except cryptography.fernet.InvalidToken:
+        except cryptography.fernet.InvalidToken:    # error al verificar integridad del mensaje con la MAC
             self.__socket.close()
             print("Error: Mensaje corrupto.")
