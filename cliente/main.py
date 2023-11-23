@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from getpass import getpass as pwd_input
 from socket import *
 from ServerManager import ServerManager
+PASSPHRASE = b'E{\xac|?\xd7\xce`\x1b\xd8\xfb\x1cK\xfed\xeb'
 
 PADDING = padding.OAEP(
     mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -32,10 +33,10 @@ t_cert = x509.load_pem_x509_certificate(t_cert_pem_data)
 # GENERAR CLAVE SIMÉTRICA
 symmetric_key = Fernet.generate_key()
 fernet = Fernet(symmetric_key)
-server_manager = ServerManager(client_socket, fernet)
+server_manager = ServerManager(client_socket, fernet, PASSPHRASE, t_cert)
 # server_manager se usará para comunicarse con el servidor empleando la clave simétrica
 
-#   ENCRIPTAR  CLAVE SIMÉTRICA CON CLAVE PÚBLICA DEL SERVIDOR
+#  ENCRIPTAR  CLAVE SIMÉTRICA CON CLAVE PÚBLICA DEL SERVIDOR
 encrypted_symmetric_key = t_cert.public_key().encrypt(
     symmetric_key,
     PADDING

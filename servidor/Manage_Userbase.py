@@ -55,7 +55,7 @@ class Userbase:
             raise ValueError("Intentando eliminar usuario no existente")
         with open(self.__path, "r") as file:
             data_list = json.load(file)
-        for i in range(0, len(data_list)):
+        for i in range(0, len(data_list["users"])):
             if data_list["users"][i].get("username") == username:
                 del data_list["users"][i]
                 break

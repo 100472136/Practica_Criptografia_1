@@ -6,13 +6,20 @@ from Certificate import Certificate
 from cryptography.fernet import Fernet
 from Manage_Userbase import Userbase
 from ServerManager import ServerManager
-import os
-PASSPHRASE = os.urandom(16)
+from cryptography import x509
+
+PASSPHRASE = b'\x94sO\xc1\xd4\x13\x0e\x11\x98\xee\x9a\x95W\xf6\xb5\x16'
 PADDING = padding.OAEP(
     mgf=padding.MGF1(algorithm=hashes.SHA256()),
     algorithm=hashes.SHA256(),
     label=None
 )
+
+HMAC_PADDING = padding.PSS(
+    mgf=padding.MGF1(hashes.SHA256()),
+    salt_length=padding.PSS.MAX_LENGTH
+)
+
 userbase = Userbase()
 
 # CREA SERVER SOCKET
@@ -31,13 +38,17 @@ while True:
     server_socket.listen(1)
     connection_socket, client_ip = server_socket.accept()
     print(f"\n\nConexión iniciada con {client_ip[0]}")
-    # CREA CLAVE PÚBLICA Y CERTIFICADO
-    # actualmente crea un certificado en cada instancia, en el futuro comprobará si dispone de uno válido
-    cert = Certificate(PASSPHRASE)
 
-    # ENVÍA SU CERTIFICADO
+    # COMPRUEBA SI TIENE UN CERTIFICADO CORRECT0
     with open("database/certificate.pem", "rb") as f:
         certificate_pem_data = f.read()
+
+    try:
+        x509.load_pem_x509_certificate(certificate_pem_data)
+    except ValueError:
+        cert = Certificate(PASSPHRASE)  # SI NO TIENE UN CERTIFICADO CORRECTO, CREA OTRO
+        with open("database/certificate.pem", "rb") as f:
+            certificate_pem_data = f.read()
 
     print("Enviando certificado...")
     connection_socket.send(certificate_pem_data)
@@ -53,7 +64,7 @@ while True:
     private_key = serialization.load_pem_private_key(data=private_key_pem_data, password=PASSPHRASE)
     symmetric_key = private_key.decrypt(encrypted_symmetric_key, PADDING)
     fernet = Fernet(symmetric_key)
-    server_manager = ServerManager(tcp_socket=connection_socket, fernet=fernet)
+    server_manager = ServerManager(tcp_socket=connection_socket, fernet=fernet, private_key=private_key)
 
     # RECIBE ESTADO DE CUENTA DEL CLIENTE
     new = server_manager.receive()

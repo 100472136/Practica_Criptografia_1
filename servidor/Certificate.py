@@ -27,10 +27,11 @@ class Certificate:
             f.write(self.__asymmetric_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.BestAvailableEncryption(self.__passphrase)       # HAY QUE ENCRIPTAR LA CLAVE PRIVADA AL ALMACENARLA
+                encryption_algorithm=serialization.BestAvailableEncryption(self.__passphrase)
+                # HAY QUE ENCRIPTAR LA CLAVE PRIVADA AL ALMACENARLA
             ))
 
-    def __generate_certificate(self):           # GENERA CERTIFICADO
+    def __generate_certificate(self):  # GENERA CERTIFICADO
         subject = issuer = x509.Name([
             x509.NameAttribute(NameOID.COUNTRY_NAME, "ES"),
             x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Madrid"),
@@ -50,7 +51,7 @@ class Certificate:
         ).not_valid_before(
             datetime.datetime.now(datetime.timezone.utc)
         ).not_valid_after(
-            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365) #   certificado válido por un año
+            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)  # certificado válido por un año
         ).add_extension(
             x509.SubjectAlternativeName([x509.DNSName("localhost")]),
             critical=False,
