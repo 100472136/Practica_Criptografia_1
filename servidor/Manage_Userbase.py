@@ -46,7 +46,8 @@ class Userbase:
         with open(self.__path, "r") as file:
             data_list = json.load(file)
         salt, password_key = self.encrypt_password(password)
-        data_list["users"].append({"username": username, "password_key": password_key.decode('latin-1'), "salt": salt.decode('latin-1')})
+        data_list["users"].append({"username": username, "password_key": password_key.decode('latin-1'),
+                                   "salt": salt.decode('latin-1')})
         with open(self.__path, "w") as file:
             json.dump(data_list, file, indent=4)
 

@@ -6,86 +6,143 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from getpass import getpass as pwd_input
 from socket import *
 from ServerManager import ServerManager
+import random
+import string
+
+REGISTER = 'r'
+LOGIN = 'i'
+TRAINER_ACCOUNT = 'e'
+
+# contraseña generada aleatoriamente para cifrado de archivos
 PASSPHRASE = b'E{\xac|?\xd7\xce`\x1b\xd8\xfb\x1cK\xfed\xeb'
 
+# padding para encriptado simétrico
 PADDING = padding.OAEP(
     mgf=padding.MGF1(algorithm=hashes.SHA256()),
     algorithm=hashes.SHA256(),
     label=None
 )
 
-#  INICIAR COMUNICACIÓN
-server_name = "localhost"
-port = 12000
-client_socket = socket(AF_INET, SOCK_STREAM)
-try:
-    client_socket.connect((server_name, port))
-except ConnectionRefusedError:
-    raise ConnectionRefusedError("Error: server not active\n")
 
-# RECIBIR CERTIFICADO DEL SERVIDOR
-t_cert_pem_data = client_socket.recv(2048)
+def main():
+    #  iniciar comunicación a través de socket
+    server_name = "localhost"
+    port = 12000
+    client_socket = socket(AF_INET, SOCK_STREAM)
+    try:
+        client_socket.connect((server_name, port))
+    except ConnectionRefusedError:
+        raise ConnectionRefusedError("Error: server not active\n")
 
-t_cert = x509.load_pem_x509_certificate(t_cert_pem_data)
+    # recibir certificado del servidor
+    t_cert_pem_data = client_socket.recv(2048)
 
-# VERIFICAR CERTIFICADO
+    t_cert = x509.load_pem_x509_certificate(t_cert_pem_data)
 
-# GENERAR CLAVE SIMÉTRICA
-symmetric_key = Fernet.generate_key()
-fernet = Fernet(symmetric_key)
-server_manager = ServerManager(client_socket, fernet, PASSPHRASE, t_cert)
-# server_manager se usará para comunicarse con el servidor empleando la clave simétrica
+    # TO DO: verificar certificado
 
-#  ENCRIPTAR  CLAVE SIMÉTRICA CON CLAVE PÚBLICA DEL SERVIDOR
-encrypted_symmetric_key = t_cert.public_key().encrypt(
-    symmetric_key,
-    PADDING
-)
+    # generar clave secreta
+    symmetric_key = Fernet.generate_key()
+    fernet = Fernet(symmetric_key)
+    # server_manager se usará para comunicarse con el servidor
+    server_manager = ServerManager(client_socket, fernet, PASSPHRASE, t_cert)
 
-# ENVIAR CLAVE SIMÉTRICA ENCRIPTADA AL SERVIDOR
-server_manager.send(encrypted_symmetric_key, encrypted=True)
+    #  encriptar clave simétrica con clave pública del servidor y enviarla al servidor
+    encrypted_symmetric_key = t_cert.public_key().encrypt(
+        symmetric_key,
+        PADDING
+    )
 
-# PIDE INPUT DE USUARIO(LOGIN)
-new = input("Bienvenido al sistema de conexión con entrenadores personales!\nTiene cuenta? (y/n):\t").lower()
-while new != 'y' and new != 'n':
-    new = input("La respuesta debe de ser 'y' (sí) o 'n' (no): Tiene cuenta creada? (y/n):\t").lower()
+    server_manager.send(encrypted_symmetric_key, encrypted=True)
 
-if new == 'n':
+    interaction_type = input("Bienvenido al sistema de conexión con entrenadores personales!\n"
+                             "Iniciar sesión (I)\nRegistrarse (R)\n"
+                             "Registrar una cuenta de entrenador (E)\n").lower()
+    while interaction_type != LOGIN and interaction_type != REGISTER and interaction_type != TRAINER_ACCOUNT:
+        print("Por favor, introduzca I si quiere iniciar sesión, R si quiere registrarse o E si quiere "
+              "registrar una cuenta de entrenador.\n")
+        interaction_type = input("Bienvenido al sistema de conexión con entrenadores personales!\n"
+                                 "Iniciar sesión (I)\nRegistrarse (R)\n"
+                                 "Registrar una cuenta de entrenador (E)\n").lower()
+
+    server_manager.send(interaction_type)
+    if interaction_type == REGISTER:
+        user = create_account(server_manager)
+    elif interaction_type == LOGIN:
+        user = login(server_manager)
+    else:
+        create_trainer_account(server_manager)
+        return
+
+    print(f"Bienvenido, {user.username}")
+
+
+def create_account(server_manager: ServerManager) -> User:
     username = input("Introduzca un nombre de usuario:\t")
+
+    # envía nombre de usuario al servidor
+    server_manager.send(username)
+
+    server_error = server_manager.receive()
+    if server_error is None:
+        raise EnvironmentError("Error en el servidor, finalizando conexión.")
+    elif server_error:
+        raise ValueError("Error: cuenta con ese nombre de usuario ya existe.")
+
     password = pwd_input("Cree una contraseña, debe de tener mínimo 7 caracteres:\t")
     while len(password) < 7:
-        password = pwd_input("Error, contraseña debe de tener mínimo 7 caracteres.\nCree una contraseña, debe de tener "
-                             "mínimo 7 caracteres:\t")
-else:
+        password = pwd_input("Error, contraseña debe de tener mínimo 7 caracteres.\n"
+                             "Cree una contraseña, debe de tener mínimo 7 caracteres:\t")
+
+    server_manager.send(password)
+    if server_manager.receive() is None:
+        raise EnvironmentError("Error en el servidor, finalizando conexión.")
+
+    return User(username, password, interaction_type=REGISTER)
+
+
+def login(server_manager: ServerManager) -> User:
     username = input("Introduzca su nombre de usuario:\t")
-    password = pwd_input("Introduzca su contraseña:\t")
-user = User(new=new, username=username, password=password)
-
-# ENVÍA ESTADO DE CUENTA AL SERVIDOR
-server_manager.send(message=user.new)
-
-# ENVÍA USUARIO AL SERVIDOR
-server_manager.send(user.username)
-
-# RECIBE RESPUESTA DEL SERVIDOR
-answer = server_manager.receive()
-answer_to_bool = {"ERROR": True, "NOERR": False}
-error = answer_to_bool.get(answer)
-if error is None:
-    raise EnvironmentError("Error en el servidor, finalizando conexión.")
-if error:
-    if new == 'n':
-        raise ValueError("Cuenta con ese nombre de usuario ya existe.")
-    else:
+    server_manager.send(username)
+    server_error = server_manager.receive()
+    if server_error is None:
+        raise EnvironmentError("Error en el servidor, finalizando conexión.")
+    if server_error:
         raise ValueError("Cuenta con ese nombre de usuario no existe.")
+    password = pwd_input("Introduzca su contraseña:\t")
+    server_manager.send(password)
+    server_error = server_manager.receive()
+    if server_error is None:
+        raise EnvironmentError("Error en el servidor, finalizando conexión.")
+    if server_error:
+        raise ValueError("Contraseña incorrecta.")
+    return User(username, password, interaction_type=LOGIN)
 
-# ENVÍA CONTRASEÑA AL SERVIDOR
-server_manager.send(user.password)
-error = answer_to_bool.get(server_manager.receive())
-if not error:
-    print(f"Bienvenido, {user.username}")
-else:
-    if new == 'y':
-        print("Contraseña incorrecta.")
-    else:
-        print("Ha habido un error, por favor, vuelva a intentarlo")
+
+def create_trainer_account(server_manager: ServerManager):
+    enterprise_key = input("Por favor, introduzca la clave de empresa correspondiente:\t")
+    server_manager.send(enterprise_key)
+    server_error = server_manager.receive()
+    if server_error is None:
+        raise EnvironmentError("Error en el servidor, finalizando conexión.")
+    if server_error:
+        raise ValueError("Clave de empresa incorrecta")
+    print("Clave de empresa correcta, se generará una cuenta de entrenador.")
+    username = input("Introduzca un nombre de usuario para el entrenador:\t")
+    server_manager.send(username)
+    server_error = server_manager.receive()
+    if server_error is None:
+        raise EnvironmentError("Error en el servidor, finalizando conexión.")
+    elif server_error:
+        raise ValueError("Cuenta con ese nombre de usuario ya existe.\n")
+    password = ''.join(random.choice(string.printable) for i in range(8))
+    server_manager.send(password)
+    if server_manager.receive() is None:
+        raise EnvironmentError("Error en el servidor, finalizando conexión.")
+
+    print("Cuenta creada, por favor, envíe estos datos al entrenador personal:\n"
+          f"Nombre de usuario: {username}\n"
+          f"Contraseña: {password}")
+
+
+main()

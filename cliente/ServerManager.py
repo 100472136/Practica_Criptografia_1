@@ -34,6 +34,7 @@ class ServerManager:
             raise BrokenPipeError("Error: servidor ha finalizado conexión.\n")
 
     def receive(self):
+        answer_to_bool = {"ERROR": True, "NOERR": False}
         try:
             answer = self.__socket.recv(4096)
             signature = answer[slice(answer.find(b"==") + 2, len(answer))]  # == indica el final del
@@ -46,6 +47,6 @@ class ServerManager:
                 padding=self.__padding,
                 algorithm=hashes.SHA256()
             )
-            return answer.decode()
+            return answer_to_bool.get(answer.decode())
         except BrokenPipeError:
             raise BrokenPipeError("Error: servidor ha finalizado conexión.\n")
