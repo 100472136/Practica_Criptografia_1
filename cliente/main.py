@@ -6,7 +6,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from getpass import getpass as pwd_input
 from socket import *
 from ServerManager import ServerManager
-import random
+import secrets
 import string
 
 REGISTER = 'r'
@@ -56,8 +56,9 @@ def main():
     server_manager.send(encrypted_symmetric_key, encrypted=True)
 
     interaction_type = input("Bienvenido al sistema de conexión con entrenadores personales!\n"
-                             "Iniciar sesión (I)\nRegistrarse (R)\n"
-                             "Registrar una cuenta de entrenador (E)\n").lower()
+                             "Qué desea hacer? (Introduzca la tecla correcta):\n"
+                             "\tIniciar sesión (I)\n\tRegistrarse (R)\n"
+                             "\tRegistrar una cuenta de entrenador (E)\n").lower()
     while interaction_type != LOGIN and interaction_type != REGISTER and interaction_type != TRAINER_ACCOUNT:
         print("Por favor, introduzca I si quiere iniciar sesión, R si quiere registrarse o E si quiere "
               "registrar una cuenta de entrenador.\n")
@@ -120,7 +121,7 @@ def login(server_manager: ServerManager) -> User:
 
 
 def create_trainer_account(server_manager: ServerManager):
-    enterprise_key = input("Por favor, introduzca la clave de empresa correspondiente:\t")
+    enterprise_key = pwd_input("Por favor, introduzca la clave de empresa correspondiente:\t")
     server_manager.send(enterprise_key)
     server_error = server_manager.receive()
     if server_error is None:
@@ -135,14 +136,14 @@ def create_trainer_account(server_manager: ServerManager):
         raise EnvironmentError("Error en el servidor, finalizando conexión.")
     elif server_error:
         raise ValueError("Cuenta con ese nombre de usuario ya existe.\n")
-    password = ''.join(random.choice(string.printable) for i in range(8))
+    password = ''.join(secrets.choice(string.ascii_letters + string.digits + string.punctuation) for i in range(8))
     server_manager.send(password)
     if server_manager.receive() is None:
         raise EnvironmentError("Error en el servidor, finalizando conexión.")
 
     print("Cuenta creada, por favor, envíe estos datos al entrenador personal:\n"
-          f"Nombre de usuario: {username}\n"
-          f"Contraseña: {password}")
+          f"\tNombre de usuario: {username}\n"
+          f"\tContraseña: {password}")
 
 
 main()

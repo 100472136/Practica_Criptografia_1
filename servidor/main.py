@@ -4,10 +4,11 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from socket import *
 from Certificate import Certificate
 from cryptography.fernet import Fernet
-from Manage_Userbase import Userbase
+from Manage_Userbase import *
 from ServerManager import ServerManager
 from cryptography import x509
-from Enterprise_Keys_Manager import EnterpriseKeysManager
+from Enterprise_Keys_Manager import init_keys_file, find_key
+from User import User
 
 PASSPHRASE = b'\x94sO\xc1\xd4\x13\x0e\x11\x98\xee\x9a\x95W\xf6\xb5\x16'
 PADDING = padding.OAEP(
@@ -15,17 +16,81 @@ PADDING = padding.OAEP(
     algorithm=hashes.SHA256(),
     label=None
 )
-HMAC_PADDING = padding.PSS(
-    mgf=padding.MGF1(hashes.SHA256()),
-    salt_length=padding.PSS.MAX_LENGTH
-)
+
+
+def register(server_manager: ServerManager) -> User | None:
+    # recibe usuario del cliente
+    username = server_manager.receive()
+    if username == -1:
+        return
+
+    # comprueba si el usuario está en la base de datos
+    if user_with_username(username) is not None:
+        server_manager.send("ERROR")
+        return
+
+    server_manager.send("NOERR")
+
+    # recibe contraseña del cliente
+    password = server_manager.receive()
+    if password == -1:
+        return
+    add_user(username, password)
+    server_manager.send("NOERR")
+    return User(username, password, account_type="Client")
+
+
+def login(server_manager: ServerManager) -> User | None:
+    # recibe usuario del cliente
+    username = server_manager.receive()
+    if username == -1:
+        return
+
+    # comprueba si el usuario está en la base de datos
+    if user_with_username(username) is None:
+        server_manager.send("ERROR")
+        return
+
+    server_manager.send("NOERR")
+
+    # RECIBE CONTRASEÑA
+    password = server_manager.receive()
+    if password == -1:
+        return
+
+    # comprueba si la contraseña le corresponde al nombre de usuario
+    if user_password_match(username, password):
+        server_manager.send("NOERR")
+        return
+    server_manager.send("ERROR")
+    return User(username, password, account_type="Trainer")
+
+
+def create_trainer_account(server_manager: ServerManager) -> int:
+    # recibe clave de empresa del cliente
+    enterprise_key = server_manager.receive()
+    init_keys_file()
+    if find_key(enterprise_key) < 0:
+        server_manager.send("ERROR")
+        return -1
+    server_manager.send("NOERR")
+    username = server_manager.receive()
+    if user_with_username(username):
+        server_manager.send("ERROR")
+        return -2
+    server_manager.send("NOERR")
+    password = server_manager.receive()
+    add_user(username, password)
+    server_manager.send("NOERR")
+    os.mkdir(f"database/user_files/{username}")
+    return 0
 
 
 def main():
-    userbase = Userbase()
-    register_input = 'r'
-    login_input = 'i'
-    trainer_account_input = 'e'
+    init_userbase()
+    register_char = 'r'
+    login_char = 'i'
+    trainer_account_char = 'e'
 
     # CREA SERVER SOCKET
     port = 12000
@@ -67,101 +132,39 @@ def main():
             private_key_pem_data = f.read()
 
         private_key = serialization.load_pem_private_key(data=private_key_pem_data, password=PASSPHRASE)
-        symmetric_key = private_key.decrypt(encrypted_symmetric_key, PADDING)
+        symmetric_key = private_key.decrypt(
+            encrypted_symmetric_key,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None))
         fernet = Fernet(symmetric_key)
         server_manager = ServerManager(tcp_socket=connection_socket, fernet=fernet, private_key=private_key)
 
-        # RECIBE ESTADO DE CUENTA DEL CLIENTE
-        new = server_manager.receive()
-        if new == -1:
+        # recibe tipo de interacción del cliente
+        interaction_type = server_manager.receive()
+        if interaction_type == -1:
             continue
-        if new == register_input:
-            if register(userbase, server_manager) < 0:
+        if interaction_type == register_char:
+            user = register(server_manager)
+            if user is None:
                 print("Error en el registro de cuenta.")
                 connection_socket.close()
                 continue
-        elif new == login_input:
-            if login(userbase, server_manager) < 0:
+        elif interaction_type == login_char:
+            user = login(server_manager)
+            if user is None:
                 print("Error en el inicio de sesión de cuenta.")
                 connection_socket.close()
                 continue
-            print("CREATING ACCCOUNT")
-        elif new == trainer_account_input:
-            if create_trainer_account(userbase, server_manager) < 0:
+        elif interaction_type == trainer_account_char:
+            if create_trainer_account(server_manager) < 0:
                 print("Error en la creación de cuenta de entrenador")
-                continue
+            continue
         else:
             print("Error, mensaje de cliente incorrecto.")
             server_manager.send("ERROR")
             continue
-
-
-def register(userbase: Userbase, server_manager: ServerManager) -> int:
-    # recibe usuario del cliente
-    username = server_manager.receive()
-    if username == -1:
-        return -3
-
-    # comprueba si el usuario está en la base de datos
-    if userbase.user_with_username(username) is not None:
-        server_manager.send("ERROR")
-        return -1
-
-    server_manager.send("NOERR")
-
-    # recibe contraseña del cliente
-    password = server_manager.receive()
-    if password == -1:
-        return -2
-    userbase.add_user(username, password)
-    server_manager.send("NOERR")
-    return 0
-
-
-def login(userbase: Userbase, server_manager: ServerManager) -> int:
-    # recibe usuario del cliente
-    username = server_manager.receive()
-    if username == -1:
-        return -3
-
-    # comprueba si el usuario está en la base de datos
-    if userbase.user_with_username(username) is None:
-        server_manager.send("ERROR")
-        return -1
-
-    server_manager.send("NOERR")
-
-    # RECIBE CONTRASEÑA
-    password = server_manager.receive()
-    if password == -1:
-        return -2
-
-    # comprueba si la contraseña le corresponde al nombre de usuario
-    if userbase.user_password_match(username, password):
-        server_manager.send("NOERR")
-        return -2
-    server_manager.send("ERROR")
-    return 0
-
-
-def create_trainer_account(userbase: Userbase, server_manager: ServerManager) -> int:
-    # recibe clave de empresa del cliente
-    enterprise_key = server_manager.receive()
-    key_manager = EnterpriseKeysManager()
-    if key_manager.find_key(enterprise_key) < 0:
-        server_manager.send("ERROR")
-        return -1
-    server_manager.send("NOERR")
-    username = server_manager.receive()
-    if userbase.user_with_username(username):
-        server_manager.send("ERROR")
-        return -2
-    server_manager.send("NOERR")
-    password = server_manager.receive()
-    userbase.add_user(username, password)
-    server_manager.send("NOERR")
-    print("CUENTA CREADA SIN PROBLEMAS")
-    return 0
 
 
 main()
