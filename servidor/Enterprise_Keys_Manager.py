@@ -3,7 +3,7 @@ import os
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.exceptions import InvalidKey
 
-PATH = "database/enterprise_keys.json"
+PATH = "servidor/database/enterprise_keys.json"
 
 
 def init_keys_file():

@@ -2,8 +2,10 @@ from cryptography.fernet import Fernet
 
 
 class User:
-    def __init__(self, username: str, password: str, interaction_type: str):
+    def __init__(self, username: str, password: str, account_type: str):
         self.username = username
         self.password = password
-        self.interaction_type = interaction_type
+        if account_type != "Trainer" and account_type != "Client":
+            raise ValueError("Account type must be client or trainer")
+        self.account_type = account_type
 

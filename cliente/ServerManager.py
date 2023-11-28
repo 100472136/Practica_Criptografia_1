@@ -18,7 +18,7 @@ class ServerManager:
 
     @staticmethod
     def read_asymmetric_key(passphrase):
-        with open("pemfiles/private_key.pem", "rb") as f:
+        with open("cliente/pemfiles/private_key.pem", "rb") as f:
             private_key_pem_data = f.read()
         return serialization.load_pem_private_key(data=private_key_pem_data, password=passphrase)
 
@@ -33,7 +33,7 @@ class ServerManager:
         except BrokenPipeError:
             raise BrokenPipeError("Error: servidor ha finalizado conexión.\n")
 
-    def receive(self):
+    def receive_answer(self) -> bool:
         answer_to_bool = {"ERROR": True, "NOERR": False}
         try:
             answer = self.__socket.recv(4096)
@@ -48,5 +48,22 @@ class ServerManager:
                 algorithm=hashes.SHA256()
             )
             return answer_to_bool.get(answer.decode())
+        except BrokenPipeError:
+            raise BrokenPipeError("Error: servidor ha finalizado conexión.\n")
+
+    def receive(self) -> str:
+        try:
+            answer = self.__socket.recv(4096)
+            signature = answer[slice(answer.find(b"==") + 2, len(answer))]  # == indica el final del
+            #  mensaje cifrado
+            answer = self.__fernet.decrypt(answer)
+            #  comprueba si el mensaje corresponde a la firma
+            self.__server_public_key.verify(
+                signature=signature,
+                data=answer,
+                padding=self.__padding,
+                algorithm=hashes.SHA256()
+            )
+            return answer.decode()
         except BrokenPipeError:
             raise BrokenPipeError("Error: servidor ha finalizado conexión.\n")

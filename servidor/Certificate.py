@@ -23,7 +23,7 @@ class Certificate:
 
     def __store_key(self):
         #   GUARDA CLAVE PRIVADA EN DISCO
-        with open("database/private_key.pem", "wb") as f:
+        with open("servidor/database/private_key.pem", "wb") as f:
             f.write(self.__asymmetric_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.PKCS8,
@@ -61,5 +61,5 @@ class Certificate:
 
     def __store_certificate(self):
         #   ALMACENA CERTIFICADO EN DISCO
-        with open("database/certificate.pem", "wb") as f:
+        with open("servidor/database/certificate.pem", "wb") as f:
             f.write(self.__certificate.public_bytes(serialization.Encoding.PEM))

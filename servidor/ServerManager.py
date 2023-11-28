@@ -18,7 +18,7 @@ class ServerManager:
 
     @staticmethod
     def read_client_public_key():
-        with open("database/client_public_key.pem", "rb") as f:
+        with open("servidor/database/client_public_key.pem", "rb") as f:
             client_public_key_pem = f.read()
 
         return serialization.load_pem_public_key(client_public_key_pem)

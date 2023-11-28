@@ -1,3 +1,10 @@
 {
-    "users": []
+    "users": [
+        {
+            "username": "aobies",
+            "type": "Client",
+            "password_key": "'\u007fH\b\u00972\\\u00a6?\u00a3\u00bc\u00bb\u0080 !\u00a1EH\u009a\rD\u00be\u0001W\u00e2k#\u00fa?6\u0099\u0013",
+            "salt": "%\u00a6t\u00f5%t\u0087\u00ca;\u00ec\u00bb\u00cb\u009e$2\u0017"
+        }
+    ]
 }

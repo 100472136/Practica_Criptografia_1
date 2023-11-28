@@ -2,26 +2,36 @@ from User import User
 import os
 import json
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+SALT = b'\xe3\xb9xCHL~\xd2i\xd8\xe6\x8ei\xa2\x1f\x1c'
 
 
 class UserFiles:
     def __init__(self, user: User, trainer: User):
-        if user.type != "Client" or trainer.type != "Trainer":
-            raise ValueError("Client and trainer must be of their corresponding type")
-        self.__user = user
+        if trainer.type != "Trainer" or user.type != "User":
+            raise TypeError("Usuario dado debe de ser un entrenador.")
         self.__trainer = trainer
-        self.__path = f"database/user_files/{self.__trainer.username}/{self.__user.username}.txt"
+        self.__user = user
+        self.__generate_fernet()
+        self.__path = f"servidor/database/user_files/{trainer.username}/{self.__user.username}"
         self.__exercises = {}
         if not os.path.exists(self.__path):
-            self.__init_file()
-        self.__fernet = Fernet(key=user.password)
+            self.__write({"routines": {}, "comments": {}})
 
-    def __init_file(self):
-        with open(self.__path,  'w') as file:
-            file.write(self.__encrypt(json.dumps({"routines": {}, "comments": {}}, indent=4)))
+    def __generate_fernet(self):
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=SALT,
+            iterations=480000
+        )
+        self.__fernet = Fernet(key=kdf.derive(self.__user.password.encode()))
 
     def __write(self, json_content: dict) -> int:
-        ciphertext = self.__fernet.encrypt(json.dumps(json_content).encode("latin-1"))
+        print("Writing...")
+        ciphertext = self.__fernet.encrypt(json.dumps(json_content, indent=4).encode("latin-1"))
         with open(self.__path, "w") as file:
             if file.write(ciphertext.decode("latin-1")) < 0:
                 return -1
@@ -30,19 +40,7 @@ class UserFiles:
     def __read(self) -> dict:
         with open(self.__path, "r") as file:
             cleartext = file.read()
-        return json.loads(self.__fernet.decrypt(cleartext))
-
-    def __encrypt(self, file_content: str) -> str:
-        """
-        Encrypts json style data using fernet symmetric encryption
-        :param file_content: json style string with data to encrypt
-        :return: encrypted data
-        """
-        return self.__fernet.encrypt(file_content.encode("latin-1")).decode("latin-1")
-
-    def __decrypt(self, file_content: str) -> dict:
-        decrypted_file_content = self.__fernet.decrypt(file_content)
-        return json.loads(decrypted_file_content)
+        return json.loads(self.__fernet.decrypt(cleartext.encode("latin-1")))
 
     def add_routine(self, routine_name: str) -> int:
         data_list = self.__read()
@@ -64,3 +62,40 @@ class UserFiles:
             return -2
         data_list.get("routines")[routine_name][exercise_name] = rep_number
         self.__write(data_list)
+
+
+class TrainerFiles:
+    def __init__(self, trainer: User):
+        if trainer.type != "Trainer":
+            raise TypeError("Usuario dado debe de ser un entrenador.")
+        self.__trainer = trainer
+        self.__generate_fernet()
+        self.__path = f"database/user_files/{trainer.username}/trainer_info.txt"
+        if not os.path.exists(self.__path):
+            self.__write({"requests": [], "users": [], "custom_exercises": {}})
+
+    def __generate_fernet(self,):
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=SALT,
+            iterations=480000
+        )
+        self.__fernet = Fernet(key=kdf.derive(self.__trainer.password.encode()))
+
+    def __write(self, json_content: dict) -> int:
+        print("Writing...")
+        ciphertext = self.__fernet.encrypt(json.dumps(json_content, indent=4).encode("latin-1"))
+        with open(self.__path, "w") as file:
+            if file.write(ciphertext.decode("latin-1")) < 0:
+                return -1
+        return 0
+
+    def __read(self) -> dict:
+        with open(self.__path, "r") as file:
+            cleartext = file.read()
+        return json.loads(self.__fernet.decrypt(cleartext.encode("latin-1")))
+
+    def get_requests(self) -> list:
+        data_list = self.__read()
+        return data_list.get("requests")

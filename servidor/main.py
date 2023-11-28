@@ -9,6 +9,7 @@ from ServerManager import ServerManager
 from cryptography import x509
 from Enterprise_Keys_Manager import init_keys_file, find_key
 from User import User
+from User_Files_Manager import UserFiles, TrainerFiles
 
 PASSPHRASE = b'\x94sO\xc1\xd4\x13\x0e\x11\x98\xee\x9a\x95W\xf6\xb5\x16'
 PADDING = padding.OAEP(
@@ -35,9 +36,8 @@ def register(server_manager: ServerManager) -> User | None:
     password = server_manager.receive()
     if password == -1:
         return
-    add_user(username, password)
-    server_manager.send("NOERR")
-    return User(username, password, account_type="Client")
+    add_user(username, password, "Client")
+    return User(username, password, type="Client")
 
 
 def login(server_manager: ServerManager) -> User | None:
@@ -59,11 +59,13 @@ def login(server_manager: ServerManager) -> User | None:
         return
 
     # comprueba si la contraseña le corresponde al nombre de usuario
-    if user_password_match(username, password):
-        server_manager.send("NOERR")
+    if not user_password_match(username, password):
+        server_manager.send("ERROR")
         return
-    server_manager.send("ERROR")
-    return User(username, password, account_type="Trainer")
+    user_type = get_user_type(username)
+    print(user_type)
+    server_manager.send(user_type)
+    return User(username, password, type=user_type)
 
 
 def create_trainer_account(server_manager: ServerManager) -> int:
@@ -80,10 +82,34 @@ def create_trainer_account(server_manager: ServerManager) -> int:
         return -2
     server_manager.send("NOERR")
     password = server_manager.receive()
-    add_user(username, password)
+    add_user(username, password, account_type="Trainer")
     server_manager.send("NOERR")
-    os.mkdir(f"database/user_files/{username}")
+    if not os.path.exists(f"database/user_files/{username}"):
+        os.mkdir(f"database/user_files/{username}")
     return 0
+
+
+def trainer_functionality(server_manager: ServerManager, trainer: User) -> int:
+    trainer_files = TrainerFiles(trainer)
+    requests = trainer_files.get_requests()
+    server_manager.send(str(len(requests)))
+    exit_input = False
+    while not exit_input:
+        command = server_manager.receive()
+        if command == 'S':
+            exit_input = True
+        elif command == 'A':
+            for request in requests:
+                server_manager.send(request)
+                request_answer = server_manager.receive()
+                if request_answer == 'y':
+                    print("Solicitud aceptada")
+                    server_manager.send("NOERR")
+                elif request_answer == 'n':
+                    print("Solicitud denegada")
+                    server_manager.send("NOERR")
+                else:
+                    server_manager.send("ERROR")
 
 
 def main():
@@ -110,14 +136,14 @@ def main():
         print(f"\n\nConexión iniciada con {client_ip[0]}")
 
         # COMPRUEBA SI TIENE UN CERTIFICADO CORRECT0
-        with open("database/certificate.pem", "rb") as f:
+        with open("servidor/database/certificate.pem", "rb") as f:
             certificate_pem_data = f.read()
 
         try:
             x509.load_pem_x509_certificate(certificate_pem_data)
         except ValueError:
             cert = Certificate(PASSPHRASE)  # SI NO TIENE UN CERTIFICADO CORRECTO, CREA OTRO
-            with open("database/certificate.pem", "rb") as f:
+            with open("servidor/database/certificate.pem", "rb") as f:
                 certificate_pem_data = f.read()
 
         print("Enviando certificado...")
@@ -128,7 +154,7 @@ def main():
         encrypted_symmetric_key = connection_socket.recv(2048)
 
         # DESENCRIPTA CLAVE SIMÉTRICA CON CLAVE PRIVADA
-        with open("database/private_key.pem", "rb") as f:
+        with open("servidor/database/private_key.pem", "rb") as f:
             private_key_pem_data = f.read()
 
         private_key = serialization.load_pem_private_key(data=private_key_pem_data, password=PASSPHRASE)
@@ -165,6 +191,9 @@ def main():
             print("Error, mensaje de cliente incorrecto.")
             server_manager.send("ERROR")
             continue
+        server_manager.send(user.type)
+        if user.type == "Trainer":
+            trainer_functionality(server_manager, user)
 
 
 main()

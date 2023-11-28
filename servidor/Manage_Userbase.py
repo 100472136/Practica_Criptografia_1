@@ -2,7 +2,7 @@ import json
 import os
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.exceptions import InvalidKey
-PATH = "database/userbase.json"
+PATH = "servidor/database/userbase.json"
 
 
 def init_userbase():
@@ -38,13 +38,20 @@ def user_with_username(username: str):
     return None
 
 
-def add_user(username: str, password: str):
+def get_user_type(username:str):
+    user = user_with_username(username)
+    if user is None:
+        raise ValueError("Usuario no existente")
+    return user.get("type")
+
+
+def add_user(username: str, password: str, account_type: str):
     if user_with_username(username) is not None:
         raise ValueError("Intentando añadir usuario ya existente.")
     with open(PATH, "r") as file:
         data_list = json.load(file)
     salt, password_key = encrypt_password(password)
-    data_list["users"].append({"username": username, "password_key": password_key.decode('latin-1'),
+    data_list["users"].append({"username": username, "type": account_type, "password_key": password_key.decode('latin-1'),
                                "salt": salt.decode('latin-1')})
     with open(PATH, "w") as file:
         json.dump(data_list, file, indent=4)
@@ -81,5 +88,5 @@ def user_password_match(username: str, password: str):
     except InvalidKey:
         return False
     remove_user(username)
-    add_user(username, password)
+    add_user(username, password, user.get("type"))
     return True
