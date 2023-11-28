@@ -12,11 +12,11 @@ PASSPHRASE = b'"uG\x08\x05\x92\xf9\x8f\x0e\x0c\x9a\x01\xc9\xfe7\x8b'
 
 class CertificateAuthority:
     def __init__(self, passphrase: bytes):
-        self.__asymmetric_key = self.__generate_key()
+        self.__asymmetric_key = None
         self.__passphrase = passphrase
-        self.__store_key()
-        self.__certificate = self.__generate_certificate()
-        self.__store_certificate()
+        self.__check_key()
+        self.__certificate = None
+        self.__check_cert()
         self.main()
 
     @staticmethod
@@ -25,6 +25,29 @@ class CertificateAuthority:
             public_exponent=65537,
             key_size=2048
         )
+
+    def __check_key(self):
+        try:
+            with open("database/ca_key.pem", "rb") as f:
+                ca_key_pem_data = f.read()
+                self.__asymmetric_key = serialization.load_pem_private_key(
+                    data=ca_key_pem_data, password=self.__passphrase)
+        except FileNotFoundError:
+            self.__asymmetric_key = self.__generate_key()
+            self.__store_key()
+
+    def __check_cert(self):
+        try:
+            with open("database/ca_cert.pem.", "rb") as f:
+                ca_cert_pem_data = f.read()
+                self.__certificate = ca_cert = x509.load_pem_x509_certificate(ca_cert_pem_data)
+
+        except FileNotFoundError:
+            self.__certificate = self.__generate_certificate()
+            self.__store_certificate()
+        except ValueError:
+            self.__certificate = self.__generate_certificate()
+            self.__store_certificate()
 
     def __generate_certificate(self):  # GENERA CERTIFICADO
         subject = issuer = x509.Name([

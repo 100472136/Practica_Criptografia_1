@@ -12,11 +12,11 @@ from cryptography.exceptions import InvalidSignature
 
 class Certificate:
     def __init__(self, passphrase: bytes):
-        self.__asymmetric_key = self.__generate_key()
+        self.__asymmetric_key = None
         self.__passphrase = passphrase
-        self.__store_key()
-        self.__certificate = self.__create_csr()
-        self.__store_certificate()
+        self.__check_key()
+        self.__certificate = None
+        self.__check_cert()
 
     @staticmethod
     def __generate_key():
@@ -24,6 +24,30 @@ class Certificate:
             public_exponent=65537,
             key_size=2048
         )
+
+    def __check_key(self):
+        try:
+            with open("database/private_key.pem", "rb") as f:
+                ca_key_pem_data = f.read()
+                self.__asymmetric_key = serialization.load_pem_private_key(
+                    data=ca_key_pem_data, password=self.__passphrase)
+        except FileNotFoundError:
+            self.__asymmetric_key = self.__generate_key()
+            self.__store_key()
+
+    def __check_cert(self):
+        try:
+            with open("database/certificate.pem", "rb") as f:
+                ca_cert_pem_data = f.read()
+                self.__certificate = ca_cert = x509.load_pem_x509_certificate(
+                    ca_cert_pem_data)
+
+        except FileNotFoundError:
+            self.__certificate = self.__create_csr()
+            self.__store_certificate()
+        except ValueError:
+            self.__certificate = self.__create_csr()
+            self.__store_certificate()
 
     def __store_key(self):
         #   GUARDA CLAVE PRIVADA EN DISCO
@@ -34,34 +58,6 @@ class Certificate:
                 encryption_algorithm=serialization.BestAvailableEncryption(self.__passphrase)
                 # HAY QUE ENCRIPTAR LA CLAVE PRIVADA AL ALMACENARLA
             ))
-
-    """def __generate_certificate(self):  # GENERA CERTIFICADO
-        subject = issuer = x509.Name([
-            x509.NameAttribute(NameOID.COUNTRY_NAME, "ES"),
-            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Madrid"),
-            x509.NameAttribute(NameOID.LOCALITY_NAME, "Colmenarejo"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "UC3M"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "uc3m.es")
-        ])
-
-        certificate = x509.CertificateBuilder().subject_name(
-            subject
-        ).issuer_name(
-            issuer
-        ).public_key(
-            self.__asymmetric_key.public_key()
-        ).serial_number(
-            x509.random_serial_number()
-        ).not_valid_before(
-            datetime.datetime.now(datetime.timezone.utc)
-        ).not_valid_after(
-            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)  # certificado válido por un año
-        ).add_extension(
-            x509.SubjectAlternativeName([x509.DNSName("localhost")]),
-            critical=False,
-        ).sign(self.__asymmetric_key, hashes.SHA256())
-
-        return certificate"""
 
     def __store_certificate(self):
         #   ALMACENA CERTIFICADO EN DISCO

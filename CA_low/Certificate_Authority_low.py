@@ -14,11 +14,11 @@ PASSPHRASE = b"5\x9a'\xd1\xe8\x8eg\xba\xa8\x11&\xfa\x0f\x92\xa5\x0f"
 
 class CertificateAuthority:
     def __init__(self, passphrase: bytes):
-        self.__asymmetric_key = self.__generate_key()
+        self.__asymmetric_key = None
         self.__passphrase = passphrase
-        self.__store_key()
-        self.__certificate = self.__create_csr()
-        self.__store_certificate()
+        self.__check_key()
+        self.__certificate = None
+        self.__check_cert()
         self.main()
 
     @staticmethod
@@ -27,6 +27,29 @@ class CertificateAuthority:
             public_exponent=65537,
             key_size=2048
         )
+
+    def __check_key(self):
+        try:
+            with open("database/ca_key.pem.", "rb") as f:
+                ca_key_pem_data = f.read()
+                self.__asymmetric_key = serialization.load_pem_private_key(
+                    data=ca_key_pem_data, password=self.__passphrase)
+        except FileNotFoundError:
+            self.__asymmetric_key = self.__generate_key()
+            self.__store_key()
+
+    def __check_cert(self):
+        try:
+            with open("database/ca_cert.pem", "rb") as f:
+                ca_cert_pem_data = f.read()
+                self.__certificate = ca_cert = x509.load_pem_x509_certificate(ca_cert_pem_data)
+
+        except FileNotFoundError:
+            self.__certificate = self.__create_csr()
+            self.__store_certificate()
+        except ValueError:
+            self.__certificate = self.__create_csr()
+            self.__store_certificate()
     def __create_csr(self):
         csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
             # Provide various details about who we are.
