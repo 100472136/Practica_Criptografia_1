@@ -41,7 +41,7 @@ def main():
     t_cert = x509.load_pem_x509_certificate(t_cert_pem_data)
 
     # verificar que la firma del certificado es válida
-    with open("pemfiles/ca_cert.pem", "rb") as f:
+    with open("../CA_low/database/ca_cert.pem", "rb") as f:
         ca_cert_pem_data = f.read()
     ca_cert = x509.load_pem_x509_certificate(ca_cert_pem_data)
     try:

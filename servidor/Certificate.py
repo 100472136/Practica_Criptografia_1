@@ -67,7 +67,6 @@ class Certificate:
         #   ALMACENA CERTIFICADO EN DISCO
         with open("database/certificate.pem", "wb") as f:
             f.write(self.__certificate.public_bytes(serialization.Encoding.PEM))
-        print("todo salio bien")
 
 
     # Generar solicitud
@@ -115,7 +114,7 @@ class Certificate:
         certificate = x509.load_pem_x509_certificate(certificate_pem_data)
 
         # verificar que la firma del certificado es válida
-        with open("database/ca_cert.pem", "rb") as f:
+        with open("../CA_low/database/ca_cert.pem", "rb") as f:
             ca_cert_pem_data = f.read()
         ca_cert = x509.load_pem_x509_certificate(ca_cert_pem_data)
         try:

@@ -5,11 +5,9 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from socket import *
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.exceptions import InvalidSignature
 
 
-PASSPHRASE = b"5\x9a'\xd1\xe8\x8eg\xba\xa8\x11&\xfa\x0f\x92\xa5\x0f"
+PASSPHRASE = b'"uG\x08\x05\x92\xf9\x8f\x0e\x0c\x9a\x01\xc9\xfe7\x8b'
 
 
 class CertificateAuthority:
@@ -17,7 +15,7 @@ class CertificateAuthority:
         self.__asymmetric_key = self.__generate_key()
         self.__passphrase = passphrase
         self.__store_key()
-        self.__certificate = self.__create_csr()
+        self.__certificate = self.__generate_certificate()
         self.__store_certificate()
         self.main()
 
@@ -27,68 +25,35 @@ class CertificateAuthority:
             public_exponent=65537,
             key_size=2048
         )
-    def __create_csr(self):
-        csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
-            # Provide various details about who we are.
+
+    def __generate_certificate(self):  # GENERA CERTIFICADO
+        subject = issuer = x509.Name([
             x509.NameAttribute(NameOID.COUNTRY_NAME, "ES"),
             x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Madrid"),
             x509.NameAttribute(NameOID.LOCALITY_NAME, "Colmenarejo"),
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, "UC3M"),
             x509.NameAttribute(NameOID.COMMON_NAME, "uc3m.es")
-        ])).add_extension(
-            x509.SubjectAlternativeName([
-                # Describe what sites we want this certificate for.
-                x509.DNSName("mysite.com"),
-                x509.DNSName("www.mysite.com"),
-                x509.DNSName("subdomain.mysite.com"),
-            ]),
+        ])
+
+        certificate = x509.CertificateBuilder().subject_name(
+            subject
+        ).issuer_name(
+            issuer
+        ).public_key(
+            self.__asymmetric_key.public_key()
+        ).serial_number(
+            x509.random_serial_number()
+        ).not_valid_before(
+            datetime.datetime.now(datetime.timezone.utc)
+        ).not_valid_after(
+            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+                days=365)  # certificado válido por un año
+        ).add_extension(
+            x509.SubjectAlternativeName([x509.DNSName("localhost")]),
             critical=False,
-        # Sign the CSR with our private key.
         ).sign(self.__asymmetric_key, hashes.SHA256())
-        # Write our CSR out to disk.
-        with open("database/csr.pem", "wb") as f:
-            f.write(csr.public_bytes(serialization.Encoding.PEM))
 
-        #se llama a la CA y envia la solicitud y esta devuelve el certificado
-        with open("database/csr.pem", "rb") as f:
-            csr_pem_data = f.read()
-
-        #  iniciar comunicación a través de socket
-        server_name = "localhost"
-        port = 12002
-        client_socket = socket(AF_INET, SOCK_STREAM)
-        try:
-            client_socket.connect((server_name, port))
-        except ConnectionRefusedError:
-            raise ConnectionRefusedError(
-                "Error: Certificate Authority not active\n")
-
-        # enviar csr a CA
-        client_socket.send(csr_pem_data)
-
-        # recibir certificado de la autoridad certificadora
-        certificate_pem_data = client_socket.recv(2048)
-        own_certificate = x509.load_pem_x509_certificate(certificate_pem_data)
-
-        # verificar que la firma del certificado es válida
-        with open("../CA_high/database/ca_cert.pem", "rb") as f:
-            ca_cert_high_pem_data = f.read()
-        ca_cert_high = x509.load_pem_x509_certificate(ca_cert_high_pem_data)
-        try:
-            ca_cert_high.public_key().verify(
-                signature=own_certificate.signature,
-                data=own_certificate.tbs_certificate_bytes,
-                padding=padding.PKCS1v15(),
-                algorithm=own_certificate.signature_hash_algorithm
-            )
-        except BrokenPipeError:
-            client_socket.close()
-            print("Error: cliente ha finalizado conexión")
-        except InvalidSignature:
-            client_socket.close()
-            print("La firma del certificado es incorrecta")
-        client_socket.close()
-        return own_certificate
+        return certificate
 
     def __store_key(self):
         #   GUARDA CLAVE PRIVADA EN DISCO
@@ -120,7 +85,7 @@ class CertificateAuthority:
         try:
             ca_cert = x509.load_pem_x509_certificate(ca_cert_pem_data)
         except ValueError:
-            ca_cert = CertificateAuthority.__create_csr(self)
+            ca_cert = CertificateAuthority.__generate_certificate(self)
             # SI NO TIENE UN CERTIFICADO CORRECTO, CREA OTRO
 
         certificate = (x509.CertificateBuilder()
@@ -148,21 +113,21 @@ class CertificateAuthority:
         return certificate_pem_data
 
     def main(self):
-        port = 12001
+        port = 12002
         ca_ip = "localhost"
 
-        server_socket = socket(AF_INET, SOCK_STREAM)
-        server_socket.bind((ca_ip, port))
-        server_ip = None
+        low_ac_socket = socket(AF_INET, SOCK_STREAM)
+        low_ac_socket.bind((ca_ip, port))
+        low_ac_ip = None
 
         # INICIA COMUNICACIÓN CON EL CLIENTE, CREA CONNECTION SOCKET
         while True:
-            if server_ip is not None:
-                print(f"Conexión finalizada con {server_ip[0]}\n\n")
+            if low_ac_ip is not None:
+                print(f"Conexión finalizada con {low_ac_ip[0]}\n\n")
             print("Esperando conexión")
-            server_socket.listen(1)
-            connection_socket, server_ip = server_socket.accept()
-            print(f"\n\nConexión iniciada con {server_ip[0]}")
+            low_ac_socket.listen(1)
+            connection_socket, low_ac_ip = low_ac_socket.accept()
+            print(f"\n\nConexión iniciada con {low_ac_ip[0]}")
 
             # COMPRUEBA SI TIENE UN CERTIFICADO CORRECT0
             with open("database/ca_cert.pem", "rb") as f:
