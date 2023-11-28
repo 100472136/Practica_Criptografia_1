@@ -109,7 +109,6 @@ class CertificateAuthority:
         with open("database/certificate.pem", "rb") as f:
             certificate_pem_data = f.read()
 
-        print(certificate_pem_data)
         return certificate_pem_data
 
     def main(self):
