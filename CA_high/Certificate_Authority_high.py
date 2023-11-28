@@ -35,12 +35,15 @@ class CertificateAuthority:
         except FileNotFoundError:
             self.__asymmetric_key = self.__generate_key()
             self.__store_key()
+            self.__certificate = self.__generate_certificate()
+            self.__store_certificate()
+
 
     def __check_cert(self):
         try:
             with open("database/ca_cert.pem.", "rb") as f:
                 ca_cert_pem_data = f.read()
-                self.__certificate = ca_cert = x509.load_pem_x509_certificate(ca_cert_pem_data)
+                self.__certificate = x509.load_pem_x509_certificate(ca_cert_pem_data)
 
         except FileNotFoundError:
             self.__certificate = self.__generate_certificate()

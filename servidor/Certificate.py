@@ -34,12 +34,14 @@ class Certificate:
         except FileNotFoundError:
             self.__asymmetric_key = self.__generate_key()
             self.__store_key()
+            self.__certificate = self.__create_csr()
+            self.__store_certificate()
 
     def __check_cert(self):
         try:
             with open("database/certificate.pem", "rb") as f:
                 ca_cert_pem_data = f.read()
-                self.__certificate = ca_cert = x509.load_pem_x509_certificate(
+                self.__certificate = x509.load_pem_x509_certificate(
                     ca_cert_pem_data)
 
         except FileNotFoundError:
