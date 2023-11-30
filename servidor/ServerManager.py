@@ -18,7 +18,7 @@ class ServerManager:
 
     @staticmethod
     def read_client_public_key():
-        with open("servidor/database/client_public_key.pem", "rb") as f:
+        with open("database/client_public_key.pem", "rb") as f:
             client_public_key_pem = f.read()
 
         return serialization.load_pem_public_key(client_public_key_pem)
@@ -29,7 +29,7 @@ class ServerManager:
                 message = message.encode()
             if not encrypted:
                 signature = self.__private_key.sign(message, padding=self.__padding, algorithm=hashes.SHA256())
-                message = self.__fernet.encrypt(message) + signature
+                message = self.__fernet.encrypt(message) + b"SIGNATURE" + signature
             self.__socket.send(message)
         except BrokenPipeError:
             self.__socket.close()
@@ -37,8 +37,8 @@ class ServerManager:
 
     def receive(self):
         try:
-            answer = self.__socket.recv(4096)
-            signature = answer[slice(answer.find(b"==") + 2, len(answer))]  # == indica el final del
+            answer = self.__socket.recv(256000)
+            signature = answer[slice(answer.find(b"SIGNATURE") + 9, len(answer))]  # == indica el final del
             #  mensaje cifrado
             answer = self.__fernet.decrypt(answer)
             #  comprueba si el mensaje corresponde a la firma

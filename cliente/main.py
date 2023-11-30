@@ -8,6 +8,7 @@ from socket import *
 from ServerManager import ServerManager
 import secrets
 import string
+import time
 
 REGISTER = 'r'
 LOGIN = 'i'
@@ -24,12 +25,65 @@ PADDING = padding.OAEP(
 )
 
 
-def listen_for_commands(message, command_list:list[str]) -> str:
-    for element in command_list:
-        element.lower()
+def input_exercise() -> tuple[str, str, str]:
+    exercise_name = input("Introduzca el nombre del ejercicio: ")
+    rep_number = None
+    while rep_number is None:
+        rep_number = input("Introduzca el número de repeticiones del set: ")
+        try:
+            int(rep_number)
+        except ValueError:
+            print("Número no válido")
+            rep_number = None
+    target_muscle = input("Introduzca el músculo principal del ejercicio: ")
+    return exercise_name, rep_number, target_muscle
+
+
+def receive_routine(server_manager: ServerManager) -> dict | None:
+    routine_name = server_manager.receive()
+    if routine_name == "FIN":  # routine doesn't exist
+        return None
+    routine = {"name": routine_name, "exercises": []}
+    while True:
+        exercise_name = server_manager.receive()
+        if exercise_name == "FIN":  # end of routine
+            return routine
+        rep_number = server_manager.receive()
+        target_muscles = server_manager.receive()
+        routine["exercises"].append([exercise_name, rep_number, target_muscles])
+
+
+def receive_comments(server_manager: ServerManager) -> list:
+    comments = []
+    while True:
+        comment_name = server_manager.receive()
+        if comment_name == "FIN":
+            return comments
+        comment_message = server_manager.receive()
+        comments.append({"name": comment_name, "message": comment_message})
+
+
+def print_comments(comments: list):
+    for comment in comments:
+        print(f"Comentario de {comment['name']}: {comment['message']}")
+
+
+def print_routine(routine: dict):
+    routine_name = routine.get("name")
+    print(f"Rutina {routine_name}")
+    exercises = routine.get("exercises")
+    for exercise in exercises:
+        print(f"\t{exercise[2]}: {exercise[1]} repeticiones de {exercise[0]}.")
+    return
+
+
+def listen_for_commands(message, input_command_list: list[str]) -> str:
+    command_list = []
+    for element in input_command_list:
+        command_list.append(element.lower())
     command_given = input(message).lower()
     while command_given not in command_list:
-        print("Por favor, introduzca un comando correcto.")
+        print(f"{command_given} no es un comando correcto.")
         command_given = input(message).lower()
     return command_given
 
@@ -52,13 +106,7 @@ def create_account(server_manager: ServerManager) -> User:
                              "Cree una contraseña, debe de tener mínimo 7 caracteres:\t")
 
     server_manager.send(password)
-    account_type = server_manager.receive()
-    if account_type == "Trainer":
-        return User(username, password, account_type)
-    elif account_type == "Client":
-        return User(username, password, account_type)
-    else:
-        raise EnvironmentError("Error en el servidor, finalizando conexión")
+    return User(username, password, account_type="Client")
 
 
 def login(server_manager: ServerManager) -> User:
@@ -107,43 +155,149 @@ def create_trainer_account(server_manager: ServerManager):
 
 
 def trainer_functionality(server_manager: ServerManager, user: User):
-    request_number = int(server_manager.receive())
-    requests_exist = request_number > 0
-    if requests_exist:
-        print(f"Tienes {request_number} solicitudes de clientes.")
-    exit_input = False
-    while not exit_input:
-        command = listen_for_commands("Qué desea hacer?\n"
-                                      "\tAtender solicitudes - A\n"
-                                      "\tSalir - S\n",
-                                      ['A', 'S'])
-        if command == 'A':
-            if not requests_exist:
-                continue
+    routine = None
+    while True:
+        if routine is None:
+            command = listen_for_commands("Qué desea hacer?\n"
+                                          "\tModificar rutinas de un cliente - 1\n"
+                                          "\tAñadir un comentario a un cliente - 2\n"
+                                          "\tSalir - 3\n",
+                                          ['1', '2', '3'])
             server_manager.send(command)
-            for i in range(1,request_number):
-                username_to_add = server_manager.receive()
-                request_command = listen_for_commands(f"Solicitud de {username_to_add}. Desea aceptarla? (y/n):",
-                                                      ['y', 'n'])
-                server_manager.send(request_command)
+            if command == '1':
+                client_to_add = input("Introduzca el nombre del cliente al que quiere añadir ejercicios: ")
+                server_manager.send(client_to_add)
                 server_error = server_manager.receive_answer()
-                if server_error is None or not server_error:
-                    print("Error en el servidor, no se ha podido procesar la solicitud. Por favor, vuelva a intentarlo.")
-                    break
-        elif command == 'S':
-            server_manager.send(command)
-            exit_input = True
+                if server_error is None or server_error:
+                    print("Usuario no válido (es un entrenador o un usuario no existente")
+                    continue
+                if routine is None:
+                    command = listen_for_commands("Qué desea hacer?\n"
+                                                  "\tCrear nueva rutina - 1\n"
+                                                  "\tSeleccionar una rutina existente - 2\n"
+                                                  "\tEliminar una rutina - 3\n",
+                                                  ['1', '2', '3'])
+                    server_manager.send(command)
+                    if command == '1':  # crear una nueva rutina
+                        routine_to_add = input("Indique el nombre de la rutina: ")
+                        server_manager.send(routine_to_add)
+                        server_error = server_manager.receive_answer()
+                        if server_error is None or server_error:
+                            print("Rutina ya existe")
+                            routine = receive_routine(server_manager)
+                            print_routine(routine)
+                        else:
+                            print("Perfecto, rutina creada")
+                            routine = {"name": routine_to_add, "exercises": []}
+                    elif command == '2':  # modificar rutina existente
+                        routine_to_add = input("Indique el nombre de la rutina: ")
+                        server_manager.send(routine_to_add)
+                        server_error = server_manager.receive_answer()
+                        if server_error is None or server_error:
+                            print("Rutina no existe")
+                            routine = {"name": routine_to_add, "exercises": []}
+                        else:
+                            routine = receive_routine(server_manager)
+                            print_routine(routine)
+                    elif command == '3':  # eliminar rutina
+                        routine_to_delete = input("Indique el nombre de la rutina a eliminar: ")
+                        server_manager.send(routine_to_delete)
+                        server_error = server_manager.receive_answer()
+                        if server_error is None or server_error:
+                            print("Rutina no existe")
+                        else:
+                            print("Perfecto, rutina eliminada")
+            elif command == '2':  # enviar un comentario
+                client = input("Introduzca el nombre del usuario al que desea dejar un comentario: ")
+                server_manager.send(client)
+                server_error = server_manager.receive_answer()
+                if server_error is None or server_error:
+                    print("Usuario no válido")
+                    continue
+                comment = input("Introduzca el comentario: ")
+                server_manager.send(comment)
+                print(f"Perfecto, comentario añadido a {client}")
+            elif command == '3':  # salir
+                print("Hasta luego!")
+                return
+
+        else:
+            command = listen_for_commands("Opciones de rutina:\n"
+                                          "\tAñadir un ejercicio - 1\n"
+                                          "\tSalir - 2\n",
+                                          ['1', '2'])
+            if command == '1':  # añadir un ejercicio
+                server_manager.send(command)
+                exercise_name, rep_number, target_muscle = input_exercise()
+                print(f"Sending exercise {exercise_name}, with {rep_number} reps and targeting {target_muscle}")
+                server_manager.send(exercise_name)
+                server_manager.send(rep_number)
+                server_manager.send(target_muscle)
+                server_error = server_manager.receive_answer()
+                if server_error is None or server_error:
+                    raise EnvironmentError("Error en el servidor")
+                print("Ejercicio añadido!")
+            elif command == '2':  # salir
+                server_manager.send(command)
+                routine = None
+                continue
+
+
+def client_functionality(server_manager: ServerManager, client: User):
+    print(f"Bienvenido, {client.username}!")
+    while True:
+        command = listen_for_commands("Qué desea hacer?\n"
+                                      "\tVer rutinas - 1\n"
+                                      "\tVer comentarios - 2\n"
+                                      "\tSalir - 3\n",
+                                      ['1', '2', '3'])
+        server_manager.send(command)
+        if command == '3':  # salir
+            print("Hasta luego!")
+            break
+        elif command == '1':  # ver rutinas
+            current_routine = {}
+            while current_routine is not None:
+                current_routine = receive_routine(server_manager)
+                if current_routine is None:
+                    print("Aún no dispone de rutinas, por favor espere a que un entrenador le añada una rutina "
+                          "a su perfil")
+                else:
+                    print_routine(current_routine)
+                    current_routine = None
+                    continue
+        elif command == '2':  # ver comentarios
+            comments = receive_comments(server_manager)
+            if len(comments) == 0:
+                print("Ningún entrenador le ha dejado un comentario")
+            else:
+                print_comments(comments)
+                time.sleep(2)
+        elif command == '3':
+            print("Hasta luego!")
+            return
 
 
 def main():
     #  iniciar comunicación a través de socket
     server_name = "localhost"
-    port = 12000
-    client_socket = socket(AF_INET, SOCK_STREAM)
-    try:
-        client_socket.connect((server_name, port))
-    except ConnectionRefusedError:
-        raise ConnectionRefusedError("Error: server not active\n")
+    #  lista de posibles puertos
+    ports = [12000, 12001, 12002]
+
+    # Flag to indicate if connection is successful
+    connected = False
+
+    for port in ports:
+        try:
+            client_socket = socket(AF_INET, SOCK_STREAM)
+            client_socket.connect((server_name, port))
+            connected = True
+            break  # exit the loop if connection successful
+        except ConnectionRefusedError:
+            continue
+
+    if not connected:
+        raise ConnectionRefusedError("No se pudo conectar a ninguno de los puertos")
 
     # recibir certificado del servidor
     t_cert_pem_data = client_socket.recv(2048)
@@ -182,10 +336,10 @@ def main():
 
     print(f"Bienvenido, {user.username}!")
 
-    if user.account_type == "Client":
+    if user.account_type == "Trainer":
         trainer_functionality(server_manager, user)
     else:
-        return
+        client_functionality(server_manager, user)
 
 
 main()

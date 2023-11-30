@@ -9,7 +9,7 @@ from ServerManager import ServerManager
 from cryptography import x509
 from Enterprise_Keys_Manager import init_keys_file, find_key
 from User import User
-from User_Files_Manager import UserFiles, TrainerFiles
+from User_Files_Manager import UserFiles
 
 PASSPHRASE = b'\x94sO\xc1\xd4\x13\x0e\x11\x98\xee\x9a\x95W\xf6\xb5\x16'
 PADDING = padding.OAEP(
@@ -17,6 +17,31 @@ PADDING = padding.OAEP(
     algorithm=hashes.SHA256(),
     label=None
 )
+
+
+def send_routine(trainer_files: UserFiles, routine_name: str, server_manager: ServerManager) -> int:
+    routine = trainer_files.get_routine(routine_name)
+    if routine is None:
+        server_manager.send("FIN")
+        return -1
+    server_manager.send(routine["name"])
+    for exercise in routine.get("exercises"):
+        #  send exercise name
+        server_manager.send(exercise[0])
+        #  send rep number
+        server_manager.send(exercise[1])
+        #  send target muscle
+        server_manager.send(exercise[2])
+    server_manager.send("FIN")
+    return 0
+
+
+def send_comments(user_files: UserFiles, server_manager: ServerManager):
+    comments = user_files.get_comments()
+    for comment in comments:
+        server_manager.send(comment["trainer"])
+        server_manager.send(comment["comment"])
+    server_manager.send("FIN")
 
 
 def register(server_manager: ServerManager) -> User | None:
@@ -63,7 +88,6 @@ def login(server_manager: ServerManager) -> User | None:
         server_manager.send("ERROR")
         return
     user_type = get_user_type(username)
-    print(user_type)
     server_manager.send(user_type)
     return User(username, password, type=user_type)
 
@@ -84,32 +108,98 @@ def create_trainer_account(server_manager: ServerManager) -> int:
     password = server_manager.receive()
     add_user(username, password, account_type="Trainer")
     server_manager.send("NOERR")
-    if not os.path.exists(f"database/user_files/{username}"):
-        os.mkdir(f"database/user_files/{username}")
     return 0
 
 
-def trainer_functionality(server_manager: ServerManager, trainer: User) -> int:
-    trainer_files = TrainerFiles(trainer)
-    requests = trainer_files.get_requests()
-    server_manager.send(str(len(requests)))
-    exit_input = False
-    while not exit_input:
+def trainer_functionality(server_manager: ServerManager, trainer: str) -> int:
+    routine = None
+    while True:
         command = server_manager.receive()
-        if command == 'S':
-            exit_input = True
-        elif command == 'A':
-            for request in requests:
-                server_manager.send(request)
-                request_answer = server_manager.receive()
-                if request_answer == 'y':
-                    print("Solicitud aceptada")
-                    server_manager.send("NOERR")
-                elif request_answer == 'n':
-                    print("Solicitud denegada")
+        if routine is None:
+            if command == '3':  # entrenador quiere salir
+                print("Trainer client exit")
+                return 0
+            elif command == '1':  # entrenador quiere modificar las rutinas de un cliente
+                user = server_manager.receive()
+                if not user_with_username(user) or get_user_type(user) == "Trainer":
+                    server_manager.send("ERROR")
+                    continue
+                trainer_files = UserFiles(user)
+                server_manager.send("NOERR")
+                command = server_manager.receive()
+                if command == '1':  # entrenador quiere añadir una nueva rutina
+                    routine_name = server_manager.receive()
+                    routine = trainer_files.get_routine(routine_name)
+                    if routine is not None:
+                        server_manager.send("ERR")
+                        send_routine(trainer_files, routine_name, server_manager)
+                    else:
+                        routine = {"name": routine_name, "exercises": []}
+                        trainer_files.add_routine(routine_name)
+                        server_manager.send("NOERR")
+                elif command == '2':  # entrenador quiere seleccionar una rutina existente
+                    routine_name = server_manager.receive()
+                    routine = trainer_files.get_routine(routine_name)
+                    if routine is None:
+                        server_manager.send("ERR")
+                        routine = {"name": routine_name, "exercises": []}
+                        trainer_files.add_routine(routine_name)
+                    else:
+                        server_manager.send("NOERR")
+                        send_routine(trainer_files, routine_name, server_manager)
+                elif command == '3':  # entrenador quiere eliminar una rutina
+                    routine_name = server_manager.receive()
+                    error_code = trainer_files.delete_routine(routine_name)
+                    if error_code < 0:
+                        server_manager.send("ERR")
+                        print(f"Deleting routine cancelled with error code {error_code}")
+                        continue
                     server_manager.send("NOERR")
                 else:
+                    continue
+            elif command == '2':  # entrenador quiere añadir un comentario
+                user = server_manager.receive()
+                if not user_with_username(user) or get_user_type(user) == "Trainer":
                     server_manager.send("ERROR")
+                    continue
+                server_manager.send("NOERR")
+                comment = server_manager.receive()
+                trainer_files = UserFiles(user)
+                trainer_files.add_comment(trainer, comment)
+
+        else:
+            if command == "1":  # trainer wants to add an exercise
+                print("Trainer wants to add an exercise")
+                exercise_name = server_manager.receive()
+                rep_number = server_manager.receive()
+                target_muscle = server_manager.receive()
+                print(f"Ejercicio recibido de entrenador, se va a añadir a rutina {routine_name}")
+                error_code = trainer_files.add_set_to_routine(routine_name, exercise_name, target_muscle, rep_number)
+                if error_code < 0:
+                    server_manager.send("ERROR")
+                    print(f"Exiting with error {error_code}")
+                    return -1
+                else:
+                    server_manager.send("NOERR")
+            elif command == "2":  # trainer wants to exit
+                routine = None
+                continue
+
+
+def client_functionality(server_manager: ServerManager, client: str):
+    client_files = UserFiles(client)
+    while True:
+        command = server_manager.receive()
+        if command == '1':  # usuario quiere ver sus rutinas
+            routines = client_files.get_routines()
+            if len(routines) == 0:
+                server_manager.send("FIN")
+            for routine in routines:
+                send_routine(client_files, routine["name"], server_manager)
+        elif command == '2':  # usuario quiere ver sus comentarios
+            send_comments(client_files, server_manager)
+        elif command == '3':
+            return
 
 
 def main():
@@ -119,11 +209,20 @@ def main():
     trainer_account_char = 'e'
 
     # CREA SERVER SOCKET
-    port = 12000
+    ports = [12000, 12001, 12002]
     server_ip = "localhost"
 
     server_socket = socket(AF_INET, SOCK_STREAM)
-    server_socket.bind((server_ip, port))
+    try:
+        server_socket.bind((server_ip, ports[0]))
+        print(f"Servidor iniciado en puerto {ports[0]}")
+    except OSError:
+        try:
+            server_socket.bind((server_ip, ports[1]))
+            print(f"Servidor iniciado en puerto {ports[1]}")
+        except OSError:
+            server_socket.bind((server_ip, ports[2]))
+            print(f"Servidor iniciado en puerto {ports[2]}")
     client_ip = None
 
     # INICIA COMUNICACIÓN CON EL CLIENTE, CREA CONNECTION SOCKET
@@ -136,14 +235,14 @@ def main():
         print(f"\n\nConexión iniciada con {client_ip[0]}")
 
         # COMPRUEBA SI TIENE UN CERTIFICADO CORRECT0
-        with open("servidor/database/certificate.pem", "rb") as f:
+        with open("database/certificate.pem", "rb") as f:
             certificate_pem_data = f.read()
 
         try:
             x509.load_pem_x509_certificate(certificate_pem_data)
         except ValueError:
             cert = Certificate(PASSPHRASE)  # SI NO TIENE UN CERTIFICADO CORRECTO, CREA OTRO
-            with open("servidor/database/certificate.pem", "rb") as f:
+            with open("database/certificate.pem", "rb") as f:
                 certificate_pem_data = f.read()
 
         print("Enviando certificado...")
@@ -154,7 +253,7 @@ def main():
         encrypted_symmetric_key = connection_socket.recv(2048)
 
         # DESENCRIPTA CLAVE SIMÉTRICA CON CLAVE PRIVADA
-        with open("servidor/database/private_key.pem", "rb") as f:
+        with open("database/private_key.pem", "rb") as f:
             private_key_pem_data = f.read()
 
         private_key = serialization.load_pem_private_key(data=private_key_pem_data, password=PASSPHRASE)
@@ -191,9 +290,10 @@ def main():
             print("Error, mensaje de cliente incorrecto.")
             server_manager.send("ERROR")
             continue
-        server_manager.send(user.type)
         if user.type == "Trainer":
-            trainer_functionality(server_manager, user)
+            trainer_functionality(server_manager, user.username)
+        elif user.type == "Client":
+            client_functionality(server_manager, user.username)
 
 
 main()

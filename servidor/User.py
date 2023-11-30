@@ -6,3 +6,4 @@ class User:
     username: str
     password: str
     type: str
+    trainer = "no_trainer"

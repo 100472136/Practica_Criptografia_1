@@ -2,7 +2,7 @@ import json
 import os
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.exceptions import InvalidKey
-PATH = "servidor/database/userbase.json"
+PATH = "database/userbase.json"
 
 
 def init_userbase():

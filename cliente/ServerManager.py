@@ -18,7 +18,7 @@ class ServerManager:
 
     @staticmethod
     def read_asymmetric_key(passphrase):
-        with open("cliente/pemfiles/private_key.pem", "rb") as f:
+        with open("pemfiles/private_key.pem", "rb") as f:
             private_key_pem_data = f.read()
         return serialization.load_pem_private_key(data=private_key_pem_data, password=passphrase)
 
@@ -28,7 +28,7 @@ class ServerManager:
                 message = message.encode()
             if not encrypted:
                 signature = self.__asymmetric_key.sign(message, padding=self.__padding, algorithm=hashes.SHA256())
-                message = self.__fernet.encrypt(message) + signature
+                message = self.__fernet.encrypt(message) + b"SIGNATURE" + signature
             self.__socket.send(message)
         except BrokenPipeError:
             raise BrokenPipeError("Error: servidor ha finalizado conexión.\n")
@@ -36,8 +36,8 @@ class ServerManager:
     def receive_answer(self) -> bool:
         answer_to_bool = {"ERROR": True, "NOERR": False}
         try:
-            answer = self.__socket.recv(4096)
-            signature = answer[slice(answer.find(b"==") + 2, len(answer))]  # == indica el final del
+            answer = self.__socket.recv(256000)
+            signature = answer[slice(answer.find(b"SIGNATURE") + 9, len(answer))]  # == indica el final del
             #  mensaje cifrado
             answer = self.__fernet.decrypt(answer)
             #  comprueba si el mensaje corresponde a la firma
@@ -54,7 +54,7 @@ class ServerManager:
     def receive(self) -> str:
         try:
             answer = self.__socket.recv(4096)
-            signature = answer[slice(answer.find(b"==") + 2, len(answer))]  # == indica el final del
+            signature = answer[slice(answer.find(b"SIGNATURE") + 9, len(answer))]  # == indica el final del
             #  mensaje cifrado
             answer = self.__fernet.decrypt(answer)
             #  comprueba si el mensaje corresponde a la firma
