@@ -209,7 +209,7 @@ def main():
     trainer_account_char = 'e'
 
     # CREA SERVER SOCKET
-    ports = [12000, 12001, 12002]
+    ports = [12000, 12003, 12004]
     server_ip = "localhost"
 
     server_socket = socket(AF_INET, SOCK_STREAM)

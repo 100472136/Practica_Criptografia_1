@@ -38,7 +38,6 @@ class CertificateAuthority:
             self.__certificate = self.__generate_certificate()
             self.__store_certificate()
 
-
     def __check_cert(self):
         try:
             with open("database/ca_cert.pem.", "rb") as f:
@@ -56,9 +55,9 @@ class CertificateAuthority:
         subject = issuer = x509.Name([
             x509.NameAttribute(NameOID.COUNTRY_NAME, "ES"),
             x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Madrid"),
-            x509.NameAttribute(NameOID.LOCALITY_NAME, "Colmenarejo"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "UC3M"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "uc3m.es")
+            x509.NameAttribute(NameOID.LOCALITY_NAME, "Madrid"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "ANF"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "anf.es")
         ])
 
         certificate = x509.CertificateBuilder().subject_name(
@@ -89,7 +88,6 @@ class CertificateAuthority:
                 format=serialization.PrivateFormat.PKCS8,
                 encryption_algorithm=serialization
                 .BestAvailableEncryption(self.__passphrase)
-                # HAY QUE ENCRIPTAR LA CLAVE PRIVADA AL ALMACENARLA
             ))
 
     def __store_certificate(self):

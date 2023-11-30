@@ -52,29 +52,28 @@ class CertificateAuthority:
         except ValueError:
             self.__certificate = self.__create_csr()
             self.__store_certificate()
+
     def __create_csr(self):
         csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
             # Provide various details about who we are.
             x509.NameAttribute(NameOID.COUNTRY_NAME, "ES"),
             x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Madrid"),
-            x509.NameAttribute(NameOID.LOCALITY_NAME, "Colmenarejo"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "UC3M"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "uc3m.es")
+            x509.NameAttribute(NameOID.LOCALITY_NAME, "Madrid"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "CNI"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "cni.es")
         ])).add_extension(
             x509.SubjectAlternativeName([
                 # Describe what sites we want this certificate for.
-                x509.DNSName("mysite.com"),
-                x509.DNSName("www.mysite.com"),
-                x509.DNSName("subdomain.mysite.com"),
+                x509.DNSName("cni.es")
             ]),
             critical=False,
-        # Sign the CSR with our private key.
+            # Sign the CSR with our private key.
         ).sign(self.__asymmetric_key, hashes.SHA256())
         # Write our CSR out to disk.
         with open("database/csr.pem", "wb") as f:
             f.write(csr.public_bytes(serialization.Encoding.PEM))
 
-        #se llama a la CA y envia la solicitud y esta devuelve el certificado
+        # se llama a la CA y envia la solicitud y esta devuelve el certificado
         with open("database/csr.pem", "rb") as f:
             csr_pem_data = f.read()
 

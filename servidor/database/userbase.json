@@ -1,22 +1,22 @@
 {
     "users": [
         {
-            "username": "juan",
-            "type": "Trainer",
-            "password_key": "\u008e\u008dI=\u00caP\u00ed\u00c0\u008c\u00c9a\u001b\u009d\u0014o-\u00d2R\u00a1\u0005\u0007\u001a\u0081\u009a\u009a\u00be\u00aa\u00fe\u00f7\u000e\u00dcR",
-            "salt": "\u0016\u00cc\u00b4Z\u00c8 z\u0098\u00d7\u0086\r\u0089\rk]\u00c3"
-        },
-        {
             "username": "client",
             "type": "Client",
-            "password_key": "\u00ef\u00ad\u0086\u00fdxH\u00b4\u0099\u008a8vaa\u00bf\u0007lnk\u00de\u00bb\btg\u00a7\u009c\u00d85\u0016\u00f1(\u00d1'",
-            "salt": "K\u00fa8&\u00cdK\u0082\u00cf\u00d0\u00dd\u00ea\u0097\u001d\u00e8\u000f\u00ec"
+            "password_key": "\u00b3\t\u008f\u00eaZEO+@\u00df\u0019uT3\u0099\u001a0\u00e1\u0099\u0089\u0003\u00b6\u0011\u00a5\u00fe!\u008e\u0002H\u0019/H",
+            "salt": "\u00f8\u00a4\u00b6!\u00b6\u0010\u00c1\b\u00c8\u00c2Fx=\u00b1\u0091`"
+        },
+        {
+            "username": "client 2",
+            "type": "Client",
+            "password_key": "\u00d8\u0092\u00d5YS\u0000\u0080\u00d8\u00a0\u00d0H\r\u0089t\u0099\u0005\u00a4D[\u0019G\u0095egt\u001b7\u00b3)\u0019OV",
+            "salt": "\u0016t1x\u00880\u00c1\u0003\u00e9\u001c7\u000e\u00dc\u00e63\u00a2"
         },
         {
             "username": "trainer",
             "type": "Trainer",
-            "password_key": "\u001e=8\u00d7\u00a2\u001b%_\u00e4\u0097\u00e3\u0098\u00fdi\u00d5\u00d6\u00cc7\u0089}S\u008a\u00be\u00f6\u00b1[\u0090\u0019o\u00b0j\u001f",
-            "salt": "in\u00c0|\u00f6\u001fUWr\u00af{a\u00db\u000f\u001b."
+            "password_key": "o\u00b5\u00e5\u00e8\u0090\u00a1$\u008d\u009d\u00f2\u00beeL\u0085\u00ccU\"\u00c4\u00afd;/\u00b6\u00cc\u00fe\u00d5rk[nr\u008f",
+            "salt": "\u00d8\u00c0\u0010\u00a0A0\u0088\u00caHq\u001d\u007f\u0099\u0015\u00e9:"
         }
     ]
 }

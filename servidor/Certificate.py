@@ -79,12 +79,11 @@ class Certificate:
         ])).add_extension(
             x509.SubjectAlternativeName([
                 # Describe what sites we want this certificate for.
-                x509.DNSName("mysite.com"),
-                x509.DNSName("www.mysite.com"),
-                x509.DNSName("subdomain.mysite.com"),
+                x509.DNSName("www.trainers.com"),
+                x509.DNSName("www.client.trainers.com")
             ]),
             critical=False,
-        # Sign the CSR with our private key.
+            # Sign the CSR with our private key.
         ).sign(self.__asymmetric_key, hashes.SHA256())
         # Write our CSR out to disk.
         with open("database/csr.pem", "wb") as f:

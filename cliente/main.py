@@ -1,6 +1,7 @@
 from User import User
 from cryptography.fernet import Fernet
 from cryptography import x509
+from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
@@ -155,7 +156,7 @@ def create_trainer_account(server_manager: ServerManager):
           f"\tContraseña: {password}")
 
 
-def trainer_functionality(server_manager: ServerManager, user: User):
+def trainer_functionality(server_manager: ServerManager):
     routine = None
     while True:
         if routine is None:
@@ -283,7 +284,7 @@ def main():
     #  iniciar comunicación a través de socket
     server_name = "localhost"
     #  lista de posibles puertos
-    ports = [12000, 12001, 12002]
+    ports = [12000, 12003, 12004]
 
     # Flag to indicate if connection is successful
     connected = False
@@ -301,20 +302,20 @@ def main():
         raise ConnectionRefusedError("No se pudo conectar a ninguno de los puertos")
 
     # recibir certificado del servidor
-    t_cert_pem_data = client_socket.recv(2048)
+    server_certificate_pem_data = client_socket.recv(2048)
 
-    t_cert = x509.load_pem_x509_certificate(t_cert_pem_data)
+    server_certificate = x509.load_pem_x509_certificate(server_certificate_pem_data)
 
     # verificar que la firma del certificado es válida
     with open("../CA_low/database/ca_cert.pem", "rb") as f:
-        ca_cert_pem_data = f.read()
-    ca_cert = x509.load_pem_x509_certificate(ca_cert_pem_data)
+        ca_certificate_pem_data = f.read()
+    ca_certificate = x509.load_pem_x509_certificate(ca_certificate_pem_data)
     try:
-        ca_cert.public_key().verify(
-            signature=t_cert.signature,
-            data=t_cert.tbs_certificate_bytes,
+        ca_certificate.public_key().verify(
+            signature=server_certificate.signature,
+            data=server_certificate.tbs_certificate_bytes,
             padding=padding.PKCS1v15(),
-            algorithm=t_cert.signature_hash_algorithm
+            algorithm=server_certificate.signature_hash_algorithm
         )
     except BrokenPipeError:
         client_socket.close()
@@ -322,15 +323,26 @@ def main():
     except InvalidSignature:
         print("La firma del certificado es incorrecta")
 
+    expected_subject = x509.Name([
+        # Provide various details about who we are.
+        x509.NameAttribute(NameOID.COUNTRY_NAME, "ES"),
+        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Madrid"),
+        x509.NameAttribute(NameOID.LOCALITY_NAME, "Colmenarejo"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "UC3M"),
+        x509.NameAttribute(NameOID.COMMON_NAME, "uc3m.es")
+    ])
+
+    if expected_subject != server_certificate.subject:
+        raise EnvironmentError("Certificado del servidor no válido")
 
     # generar clave secreta
     symmetric_key = Fernet.generate_key()
     fernet = Fernet(symmetric_key)
     # server_manager se usará para comunicarse con el servidor
-    server_manager = ServerManager(client_socket, fernet, PASSPHRASE, t_cert)
+    server_manager = ServerManager(client_socket, fernet, PASSPHRASE, server_certificate)
 
     #  encriptar clave simétrica con clave pública del servidor y enviarla al servidor
-    encrypted_symmetric_key = t_cert.public_key().encrypt(
+    encrypted_symmetric_key = server_certificate.public_key().encrypt(
         symmetric_key,
         PADDING
     )
@@ -354,7 +366,7 @@ def main():
     print(f"Bienvenido, {user.username}!")
 
     if user.account_type == "Trainer":
-        trainer_functionality(server_manager, user)
+        trainer_functionality(server_manager)
     else:
         client_functionality(server_manager, user)
 
