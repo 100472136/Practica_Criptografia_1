@@ -3,6 +3,7 @@ from cryptography.fernet import Fernet
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.exceptions import InvalidSignature
 from getpass import getpass as pwd_input
 from socket import *
 from ServerManager import ServerManager
@@ -304,7 +305,23 @@ def main():
 
     t_cert = x509.load_pem_x509_certificate(t_cert_pem_data)
 
-    # TO DO: verificar certificado
+    # verificar que la firma del certificado es válida
+    with open("../CA_low/database/ca_cert.pem", "rb") as f:
+        ca_cert_pem_data = f.read()
+    ca_cert = x509.load_pem_x509_certificate(ca_cert_pem_data)
+    try:
+        ca_cert.public_key().verify(
+            signature=t_cert.signature,
+            data=t_cert.tbs_certificate_bytes,
+            padding=padding.PKCS1v15(),
+            algorithm=t_cert.signature_hash_algorithm
+        )
+    except BrokenPipeError:
+        client_socket.close()
+        print("Error: cliente ha finalizado conexión")
+    except InvalidSignature:
+        print("La firma del certificado es incorrecta")
+
 
     # generar clave secreta
     symmetric_key = Fernet.generate_key()
